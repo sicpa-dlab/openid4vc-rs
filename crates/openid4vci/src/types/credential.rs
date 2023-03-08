@@ -1,16 +1,24 @@
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
 /// A struct mapping a `credential` type as defined in Appendix E in the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Credential {
     /// Format Claim determining the format of the credential to be requested and further
     /// parameters characterising the type of the credential to be requested as defined in Appendix
     /// E of the [openid4vci
     /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
-    pub format: CredentialFormat,
+    pub format: String,
+
+    /// The values depending on the specific format
+    #[serde(flatten)]
+    pub format_value: CredentialFormat,
 }
 
 /// Enum for the available credential formats
+#[derive(Debug, Serialize, Deserialize)]
 pub enum CredentialFormat {
     /// `jwt_vc_json`
     ///
@@ -70,7 +78,7 @@ pub enum CredentialFormat {
 
         /// An array of claims.display.name values that lists them in the order they should be
         /// displayed by the Wallet.
-        order: Option<Vec<String>>
+        order: Option<Vec<String>>,
     },
 
     /// `mso_mdoc`
@@ -85,19 +93,19 @@ pub enum CredentialFormat {
         /// namespace as defined in [ISO.18013-5](https://www.iso.org/standard/69084.html) (or any
         /// profile of it), and the value is a JSON object. This object also contains a list of key
         /// value pairs, where the key is a claim that is defined in the respective namespace and
-        /// is offered in the Credential. 
+        /// is offered in the Credential.
         claims: Option<HashMap<String, CredentialSubject>>,
 
         /// An array of claims.display.name values that lists them in the order they should be
         /// displayed by the Wallet.
-        order: Option<Vec<String>>
-
+        order: Option<Vec<String>>,
     },
 }
 
 /// A JSON object containing a list of key value pairs, where the key identifies the claim
 /// offered in the Credential. The value MAY be a dictionary, which allows to represent the
 /// full (potentially deeply nested) structure of the verifiable credential to be issued.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CredentialSubject {
     /// Boolean which when set to true indicates the claim MUST be present in the issued Credential. If
     /// the mandatory property is omitted its default should be assumed to be false.
@@ -115,6 +123,7 @@ pub struct CredentialSubject {
 }
 
 /// A Struct containing the fields for the credentialSubjects dispay field.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CredentialSubjectDisplay {
     /// String value of a display name for the claim.
     pub name: Option<String>,

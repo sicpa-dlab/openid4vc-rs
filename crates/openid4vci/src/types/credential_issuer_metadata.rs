@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 /// Struct mapping the `issuer_metadata` as defined in section 10.2.3 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
-#[derive(Debug)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct CredentialIssuerMetadata {
     /// The Credential Issuer's identifier
     pub credential_issuer: String,
@@ -29,7 +31,7 @@ pub struct CredentialIssuerMetadata {
 
 /// Struct mapping the `credential_supported` as defined in section 10.2.3.1 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential-metadata-object)
-#[derive(Debug)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct CredentialSupported {
     /// A JSON string identifying the format of this credential, e.g. jwt_vc_json or ldp_vc.
     /// Depending on the format value, the object contains further elements defining the type and
@@ -74,7 +76,7 @@ pub struct CredentialSupported {
 
 /// Struct mapping the `display` type as defined in section 10.2.3.1 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential-metadata-object)
-#[derive(Debug)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct DisplayProperties {
     /// display name for the Credential.
     pub name: String,
@@ -102,7 +104,7 @@ pub struct DisplayProperties {
 
 /// Struct mapping the `logo` type as defined in section 10.2.3.1 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential-metadata-object)
-#[derive(Debug)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct DisplayLogo {
     /// URL where the Wallet can obtain a logo of the Credential from the Credential Issuer.
     pub url: Option<String>,

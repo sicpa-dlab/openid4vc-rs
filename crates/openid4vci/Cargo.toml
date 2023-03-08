@@ -10,3 +10,4 @@ readme.workspace = true
 
 [dependencies]
 thiserror = "1.0.39"
+serde = { version = "1.0.153", features = ["derive"]  }

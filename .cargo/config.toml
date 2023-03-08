@@ -10,5 +10,6 @@ rustflags = ["-D", "clippy::all",
              "-D", "clippy::complexity",
              "-D", "clippy::perf",
              "-D", "clippy::missing_docs_in_private_items",
-             "-A", "clippy::module-name-repetitions"
+             "-A", "clippy::module-name-repetitions",
+             "-A", "clippy::module-inception"
              ]
