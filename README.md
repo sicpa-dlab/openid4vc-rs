@@ -27,7 +27,7 @@ This package will expose the functionality of the library over gRPC. These
 interfaces are not compatible with the endpoints as defined in the openid4vci
 specification as those have to be expose over HTTP. This package can be used
 in a micro-service architecture where the communication between the different
-services if done with gRPC.
+services is done with gRPC.
 
 ## License
 
