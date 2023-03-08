@@ -30,6 +30,9 @@ jobs:
       - name: Check
         run: cargo check --workspace
 
+      - name: Clippy 
+        run: cargo clippy
+
       - name: Audit
         run: cargo audit
 
