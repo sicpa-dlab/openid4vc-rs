@@ -13,10 +13,11 @@ these packages have their uses which are described below.
 
 ### `openid4vci`
 
-This package will be an implementation of the openid4vci specification as a
-consumable library. This means that the library will not contain any endpoints
-as required by the specification. The functionality can be seen by the two
-following points:
+This package will be an implementation of the [openid4vci
+specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
+as a consumable library. This means that the library will not contain any
+endpoints as required by the specification. The functionality can be seen by
+the two following points:
 
 1. Evaluate incoming requests
 2. Generate error and success responses

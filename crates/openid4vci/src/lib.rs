@@ -1,15 +1,15 @@
-//! openid4vci specification implementation as a library.
+//! [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html) implementation as a library.
 //!
 //! This library contains the following modules:
 //!
-//! ### Token
+//! ### Access Token
 //!
-//! The token module contains the code to do the following:
+//! The access token module contains the code to do the following:
 //!
-//! - evaluate token requests
-//! - generate token success responses
-//! - generate token error responses
+//! - evaluate requests
+//! - generate success responses
+//! - generate error responses
 //!
 
 /// Module that contains the functionality related to the token endpoint
-pub mod token;
+pub mod access_token;
