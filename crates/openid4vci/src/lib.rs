@@ -11,8 +11,8 @@
 //! - generate error responses
 //!
 
-/// Module that contains the functionality related to the token endpoint
+/// Module that contains the functionality related to the access token endpoint
 pub mod access_token;
 
-/// Module containing a single struct for the issuer metadata
-pub mod credential_issuer_metadata;
+/// Module that contains the functionality related to the credential offer and request endpoints
+pub mod credential;
