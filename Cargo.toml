@@ -1,0 +1,10 @@
+[workspace]
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+description = "Workspace that contains code for openid4vci and openid4vp as a service."
+repository = "https://github.com/sicpa-dlab/openid4vc-rs"
+license = "Apache-2.0"
+readme = "./README.md"
