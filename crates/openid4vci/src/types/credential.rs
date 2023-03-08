@@ -105,8 +105,8 @@ pub struct CredentialSubject {
 
     /// String value determining type of value of the claim. A non-exhaustive list of valid values
     /// defined by this specification are string, number, and image media types such as image/jpeg
-    /// as defined in IANA media type registry for images
-    /// (https://www.iana.org/assignments/media-types/media-types.xhtml#image).
+    /// as defined in [IANA media type registry for
+    /// images](https://www.iana.org/assignments/media-types/media-types.xhtml#image).
     pub value_type: Option<String>,
 
     /// An array of objects, where each object contains display properties of a certain claim in
