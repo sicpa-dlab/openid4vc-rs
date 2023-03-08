@@ -13,3 +13,6 @@
 
 /// Module that contains the functionality related to the token endpoint
 pub mod access_token;
+
+/// Module containing a single struct for the issuer metadata
+pub mod credential_issuer_metadata;
