@@ -1,18 +1,15 @@
-//! Example project for now
+//! [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html) implementation as a library.
+//!
+//! This library contains the following modules:
+//!
+//! ### Access Token
+//!
+//! The access token module contains the code to do the following:
+//!
+//! - evaluate requests
+//! - generate success responses
+//! - generate error responses
+//!
 
-/// Simple adder of usizes
-#[must_use]
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+/// Module that contains the functionality related to the token endpoint
+pub mod access_token;
