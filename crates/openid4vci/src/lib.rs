@@ -14,8 +14,8 @@
 /// Module that contains the functionality related to the access token endpoint
 pub mod access_token;
 
-/// Module that contains the functionality related to the credential offer and request endpoints
-pub mod credential;
+/// Module that contains the functionality related to the credential issuance
+pub mod credential_issuer;
 
 /// Module that contains some meta types that will be extracted later on
 pub mod types;

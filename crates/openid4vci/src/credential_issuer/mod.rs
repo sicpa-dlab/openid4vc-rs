@@ -35,23 +35,28 @@ pub struct PreAuthorizedCodeFlow {
     pub user_pin_required: Option<bool>,
 }
 
-/// Create a credential offer
-///
-/// ## Errors
-///
-/// - When the authorized flow option is supplied
-pub fn create_credential_offer(
-    _issuer_metadata: &CredentialIssuerMetadata,
-    _credentials: &[&CredentialOrUri],
-    _credential_offer_endpoint: &Option<String>,
-    authorized_code_flow: Option<AuthorizedCodeFlow>,
-    _pre_authorized_code_flow: Option<PreAuthorizedCodeFlow>,
-) -> Result<(), Error> {
-    if authorized_code_flow.is_some() {
-        return Err(Error::AuthorizedFlowNotSupported);
-    }
+/// Structure that contains the functionality for the credential issuer
+pub struct CredentialIssuer;
 
-    Ok(())
+impl CredentialIssuer {
+    /// Create a credential offer
+    ///
+    /// ## Errors
+    ///
+    /// - When the authorized flow option is supplied
+    pub fn create_offer(
+        _issuer_metadata: &CredentialIssuerMetadata,
+        _credentials: &[&CredentialOrUri],
+        _credential_offer_endpoint: &Option<String>,
+        authorized_code_flow: &Option<AuthorizedCodeFlow>,
+        _pre_authorized_code_flow: &Option<PreAuthorizedCodeFlow>,
+    ) -> Result<(), Error> {
+        if authorized_code_flow.is_some() {
+            return Err(Error::AuthorizedFlowNotSupported);
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -60,12 +65,12 @@ mod test_credential {
 
     #[test]
     fn should_error_when_using_authorized_flow() {
-        let result = create_credential_offer(
+        let result = CredentialIssuer::create_offer(
             &CredentialIssuerMetadata::default(),
             &[],
             &Some(String::default()),
-            Some(AuthorizedCodeFlow { issuer_state: None }),
-            None,
+            &Some(AuthorizedCodeFlow { issuer_state: None }),
+            &None,
         );
         let expect = Err(Error::AuthorizedFlowNotSupported);
         assert_eq!(result, expect);
