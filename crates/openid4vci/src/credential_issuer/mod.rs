@@ -1,6 +1,8 @@
 use thiserror::Error;
 
-use crate::types::{credential::Credential, credential_issuer_metadata::CredentialIssuerMetadata};
+use crate::types::{
+    credential::CredentialFormatProfile, credential_issuer_metadata::CredentialIssuerMetadata,
+};
 
 /// Error enum for development when an error occurs related to the `Credential` struct.
 #[derive(Error, Debug, PartialEq)]
@@ -14,7 +16,7 @@ pub enum Error {
 /// Enum that defines a type which may contain a [Credential] type or a string
 pub enum CredentialOrUri {
     /// A full nested Credential object
-    Credential(Option<Credential>),
+    Credential(Option<CredentialFormatProfile>),
 
     /// A URI referencing a credential object on the [CredentialIssuerMetadata]
     Uri(Option<String>),

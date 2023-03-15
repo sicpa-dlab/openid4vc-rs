@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "format")]
-pub enum Credential {
+pub enum CredentialFormatProfile {
     /// `jwt_vc_json`
     ///
     /// VC signed as a JWT, not using JSON-LD
@@ -203,11 +203,11 @@ mod credential_tests {
             }
         });
 
-        let credential: Credential =
+        let credential: CredentialFormatProfile =
             serde_json::from_value(jwt_vc_json).expect("Could not format credential");
 
         match credential {
-            Credential::JwtVcJson {
+            CredentialFormatProfile::JwtVcJson {
                 types,
                 credential_subject,
                 order,
@@ -277,11 +277,11 @@ mod credential_tests {
             }
         });
 
-        let credential: Credential =
+        let credential: CredentialFormatProfile =
             serde_json::from_value(jwt_vc_json).expect("Could not format credential");
 
         match credential {
-            Credential::JwtVcJsonLd {
+            CredentialFormatProfile::JwtVcJsonLd {
                 types,
                 credential_subject,
                 order,
@@ -355,11 +355,11 @@ mod credential_tests {
         }
                     );
 
-        let credential: Credential =
+        let credential: CredentialFormatProfile =
             serde_json::from_value(jwt_vc_json).expect("Could not format credential");
 
         match credential {
-            Credential::LdpVc {
+            CredentialFormatProfile::LdpVc {
                 types,
                 order,
                 credential_subject,
