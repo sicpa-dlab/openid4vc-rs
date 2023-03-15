@@ -20,22 +20,19 @@ pub enum CredentialOrUri {
     Uri(Option<String>),
 }
 
-/// Container for both the authorized Code Flow an the pre-authorized code flow options.
-pub enum CodeFlow {
-    /// Field that defined the optional values for when the authorized code flow is used
-    Authorized {
-        /// Issuer state that MUST be the same, if supplied, from the authorization request
-        issuer_state: Option<String>,
-    },
+/// Field that defined the optional values for when the authorized code flow is used
+pub struct AuthorizedCodeFlow {
+    /// Issuer state that MUST be the same, if supplied, from the authorization request
+    pub issuer_state: Option<String>,
+}
 
-    /// Field that defines the optional values for when the pre-authorized code flow is used
-    PreAuthorized {
-        /// Optional code that will be used in the return value directly
-        code: Option<String>,
+/// Field that defines the optional values for when the pre-authorized code flow is used
+pub struct PreAuthorizedCodeFlow {
+    /// Optional code that will be used in the return value directly
+    pub code: Option<String>,
 
-        /// Whether the user must supply a pin later on. The default value `false` here.
-        user_pin_required: Option<bool>,
-    },
+    /// Whether the user must supply a pin later on. The default value `false` here.
+    pub user_pin_required: Option<bool>,
 }
 
 /// Create a credential offer
@@ -43,20 +40,16 @@ pub enum CodeFlow {
 /// ## Errors
 ///
 /// - When the authorized flow option is supplied
-/// - When pre-authorized and authorized are supplied
 pub fn create_credential_offer(
     _issuer_metadata: &CredentialIssuerMetadata,
     _credentials: &[&CredentialOrUri],
     _credential_offer_endpoint: &Option<String>,
-    supported_code_flow: CodeFlow,
+    authorized_code_flow: Option<AuthorizedCodeFlow>,
+    _pre_authorized_code_flow: Option<PreAuthorizedCodeFlow>,
 ) -> Result<(), Error> {
-    let (_, _) = match supported_code_flow {
-        CodeFlow::Authorized { issuer_state: _ } => return Err(Error::AuthorizedFlowNotSupported),
-        CodeFlow::PreAuthorized {
-            code,
-            user_pin_required,
-        } => (code, user_pin_required),
-    };
+    if authorized_code_flow.is_some() {
+        return Err(Error::AuthorizedFlowNotSupported);
+    }
 
     Ok(())
 }
@@ -71,7 +64,8 @@ mod test_credential {
             &CredentialIssuerMetadata::default(),
             &[],
             &Some(String::default()),
-            CodeFlow::Authorized { issuer_state: None },
+            Some(AuthorizedCodeFlow { issuer_state: None }),
+            None,
         );
         let expect = Err(Error::AuthorizedFlowNotSupported);
         assert_eq!(result, expect);
