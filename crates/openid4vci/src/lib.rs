@@ -11,6 +11,17 @@
 //! - generate error responses
 //!
 
+/// Macros for the openid4vci-rs crate
+#[macro_use]
+mod macros;
+
+#[macro_use]
+extern crate strum;
+
+/// Error module that contains an serialize, complex error object that can be send of over FFI,
+/// HTTP, `gRPC`, etc.
+pub mod error;
+
 /// Module that contains the functionality related to the access token endpoint
 pub mod access_token;
 
