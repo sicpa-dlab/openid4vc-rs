@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// Struct mapping the `issuer_metadata` as defined in section 10.2.3 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
@@ -27,6 +30,10 @@ pub struct CredentialIssuerMetadata {
     /// A JSON array containing a list of JSON objects, each of them representing metadata about a
     /// separate credential type that the Credential Issuer can issue.
     pub credentials_supported: Vec<CredentialSupported>,
+
+    /// All the remaining fields that are not captured in the other fields.
+    #[serde(flatten)]
+    pub additional_fields: HashMap<String,  Value>
 }
 
 /// Struct mapping the `credential_supported` as defined in section 10.2.3.1 of the [openid4vci
