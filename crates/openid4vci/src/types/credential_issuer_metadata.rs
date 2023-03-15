@@ -33,7 +33,7 @@ pub struct CredentialIssuerMetadata {
 
     /// All the remaining fields that are not captured in the other fields.
     #[serde(flatten)]
-    pub additional_fields: HashMap<String,  Value>
+    pub additional_fields: HashMap<String, Value>,
 }
 
 /// Struct mapping the `credential_supported` as defined in section 10.2.3.1 of the [openid4vci

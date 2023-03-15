@@ -366,7 +366,9 @@ mod credential_tests {
                 context,
             } => {
                 assert!(context.contains(&"https://www.w3.org/2018/credentials/v1".to_owned()));
-                assert!(context.contains(&"https://www.w3.org/2018/credentials/examples/v1".to_owned()));
+                assert!(
+                    context.contains(&"https://www.w3.org/2018/credentials/examples/v1".to_owned())
+                );
                 assert!(types.contains(&"VerifiableCredential".to_owned()));
                 assert!(types.contains(&"UniversityDegreeCredential".to_owned()));
                 assert!(credential_subject.is_some());
