@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 /// etc.
 ///
 /// A struct mapping a `credential` type as defined in Appendix E in the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
-#[derive(Debug, Serialize, Deserialize)]
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#format_profiles)
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(tag = "format")]
 pub enum CredentialFormatProfile {
     /// `jwt_vc_json`
@@ -108,7 +108,7 @@ pub enum CredentialFormatProfile {
 /// A JSON object containing a list of key value pairs, where the key identifies the claim
 /// offered in the Credential. The value MAY be a dictionary, which allows to represent the
 /// full (potentially deeply nested) structure of the verifiable credential to be issued.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CredentialSubject {
     /// Boolean which when set to true indicates the claim MUST be present in the issued Credential. If
@@ -130,7 +130,7 @@ pub struct CredentialSubject {
 }
 
 /// A Struct containing the fields for the credentialSubjects dispay field.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CredentialSubjectDisplay {
     /// String value of a display name for the claim.
     #[serde(skip_serializing_if = "Option::is_none")]
