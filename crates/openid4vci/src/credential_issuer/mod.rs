@@ -1,17 +1,10 @@
-use thiserror::Error;
+use self::error::CredentialIssuerError;
+use self::error::Result;
+use crate::types::credential::CredentialFormatProfile;
+use crate::types::credential_issuer_metadata::CredentialIssuerMetadata;
 
-use crate::types::{
-    credential::CredentialFormatProfile, credential_issuer_metadata::CredentialIssuerMetadata,
-};
-
-/// Error enum for development when an error occurs related to the `Credential` struct.
-#[derive(Error, Debug, PartialEq)]
-pub enum Error {
-    /// Authorized code flow is currently not supported. The option is already added to supply the
-    /// functionality to keep breaking changes to a minimum
-    #[error("The Authorized flow is currently not supported")]
-    AuthorizedFlowNotSupported,
-}
+/// Error module for the credential issuance module
+pub mod error;
 
 /// Enum that defines a type which may contain a [Credential] type or a string
 pub enum CredentialOrUri {
@@ -52,9 +45,9 @@ impl CredentialIssuer {
         _credential_offer_endpoint: &Option<String>,
         authorized_code_flow: &Option<AuthorizedCodeFlow>,
         _pre_authorized_code_flow: &Option<PreAuthorizedCodeFlow>,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         if authorized_code_flow.is_some() {
-            return Err(Error::AuthorizedFlowNotSupported);
+            return Err(CredentialIssuerError::AuthorizedFlowNotSupported);
         }
 
         Ok(())
@@ -63,6 +56,8 @@ impl CredentialIssuer {
 
 #[cfg(test)]
 mod test_credential {
+    use crate::credential_issuer::error::CredentialIssuerError;
+
     use super::*;
 
     #[test]
@@ -74,7 +69,7 @@ mod test_credential {
             &Some(AuthorizedCodeFlow { issuer_state: None }),
             &None,
         );
-        let expect = Err(Error::AuthorizedFlowNotSupported);
+        let expect = Err(CredentialIssuerError::AuthorizedFlowNotSupported);
         assert_eq!(result, expect);
     }
 }
