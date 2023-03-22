@@ -31,6 +31,26 @@ pub enum CredentialIssuerError {
         /// Identifier from the credential that could not be found in the `IssuerMetadata`
         id: String,
     } = 102,
+
+    /// The credential identifier inside the [`super::CredentialOrIds`] object could not be resolved
+    /// with in the [`super::CredentialIssuerMetadata`]
+    #[error("Could not url-encode the credential")]
+    InvalidCredentialOfferEncoding {
+        /// Error message provided by [`serde_urlencoded::to_string`]
+        error_message: String,
+    } = 103,
+
+    #[error("An error occurred during serialization")]
+    SerializationError {
+        /// Serialization error from serde
+        error_message: String,
+    } = 104,
+
+    #[error("An error occurred during deserialization")]
+    DeserializationError {
+        /// Deserialization error from serde
+        error_message: String,
+    } = 105,
 }
 
 error_impl!(CredentialIssuerError);
@@ -64,10 +84,25 @@ mod credential_issuer_error_tests {
 
     #[test]
     fn should_extract_correct_information_for_credential_id_not_in_issuer_metadata() {
-        let error_information = CredentialIssuerError::CredentialIdNotInIssuerMetadata { id: "cred_id_one".to_owned() }.information();
+        let error_information = CredentialIssuerError::CredentialIdNotInIssuerMetadata {
+            id: "cred_id_one".to_owned(),
+        }
+        .information();
 
         assert!(error_information.code == 102);
         assert!(error_information.name == "CredentialIdNotInIssuerMetadata");
         assert!(error_information.description == "The id `cred_id_one` does not refer to a credential format inside the issuer metadata");
+    }
+
+    #[test]
+    fn should_extract_correct_information_for_invalid_credential_offer_encoding() {
+        let error_information = CredentialIssuerError::InvalidCredentialOfferEncoding {
+            error_message: "invalid encoding".to_owned(),
+        }
+        .information();
+
+        assert!(error_information.code == 103);
+        assert!(error_information.name == "InvalidCredentialOfferEncoding");
+        assert!(error_information.description == "Could not url-encode the credential");
     }
 }
