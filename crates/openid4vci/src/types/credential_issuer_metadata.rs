@@ -6,7 +6,7 @@ use serde_json::Value;
 use super::credential::CredentialFormatProfile;
 
 /// Struct mapping the `issuer_metadata` as defined in section 10.2.3 of the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-10.2.3)
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct CredentialIssuerMetadata {
     /// The Credential Issuer's identifier
@@ -85,7 +85,7 @@ pub struct CredentialSupported {
 }
 
 /// Struct mapping the `display` type as defined in section 10.2.3.1 of the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential-metadata-object)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-10.2.3.1)
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct DisplayProperties {
     /// display name for the Credential.
@@ -113,7 +113,7 @@ pub struct DisplayProperties {
 }
 
 /// Struct mapping the `logo` type as defined in section 10.2.3.1 of the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential-metadata-object)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-10.2.3.1)
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct DisplayLogo {
     /// URL where the Wallet can obtain a logo of the Credential from the Credential Issuer.

@@ -1,5 +1,5 @@
 /// Enum containing error responses for an access token request. This is a direct implementation of section
-/// 6.3 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html).
+/// 6.3 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.3).
 #[derive(Debug, PartialEq)]
 pub enum ErrorResponse {
     /// `invalid_request`

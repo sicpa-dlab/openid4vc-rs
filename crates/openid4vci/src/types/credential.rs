@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 /// etc.
 ///
 /// A struct mapping a `credential` type as defined in Appendix E in the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#format_profiles)
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(tag = "format")]
 pub enum CredentialFormatProfile {

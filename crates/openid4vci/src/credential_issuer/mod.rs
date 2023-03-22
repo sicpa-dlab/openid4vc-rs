@@ -117,7 +117,7 @@ pub struct PreAuthorizedCodeFlow {
 }
 
 /// Struct mapping the `credential offer parameters` as defined in section 4.1.1 of the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-4.1.1)
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
 pub struct CredentialOffer {
     /// The URL of the Credential Issuer, the Wallet is requested to obtain one or more Credentials
@@ -168,7 +168,7 @@ impl CredentialOffer {
     /// # Errors
     ///
     /// - When the structure could not url encoded
-    pub fn to_url(&self) -> Result<String> {
+    pub fn url_encode(&self) -> Result<String> {
         let s =
             serde_json::to_string(self).map_err(|e| CredentialIssuerError::SerializationError {
                 error_message: e.to_string(),
@@ -188,12 +188,12 @@ impl CredentialOffer {
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
 pub struct CredentialOfferGrants {
     /// Adds support for the authorized code flow as defined in section 3.4 of the [openid4vci
-    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html).
+    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-3.4).
     #[serde(skip_serializing_if = "Option::is_none", rename = "authorization_code")]
     pub authorized_code_flow: Option<AuthorizedCodeFlow>,
 
     /// Adds support for the pre-authorized code flow as defined in section 3.5 of the [openid4vci
-    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html).
+    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-3.5).
     #[serde(
         skip_serializing_if = "Option::is_none",
         rename = "urn:ietf:params:oauth:grant-type:pre-authorized_code"
@@ -206,6 +206,10 @@ pub struct CredentialIssuer;
 
 impl CredentialIssuer {
     /// Create a credential offer
+    ///
+    /// This function returns a [`CredentialOffer`] and a credential offer url. This url is either
+    /// can be a deeplink or a normal url. If a `credential_offer_endpoint` is supplied, it will be
+    /// used to create a normal link, and if [`None`] is supplied, a deeplink will be created.
     ///
     /// ## Errors
     ///
@@ -227,37 +231,10 @@ impl CredentialIssuer {
 
         // Resolve all the credential ids, if supplied
         // This also checks if the credential is supported by the issuer
-        let resolved_credentials =
-            Into::<CredentialOrIds>::into(credentials).resolve_all(issuer_metadata)?;
-
-        // Match statement to extract the values from the supported credentials
-        // Only `CredentialFormatProfile::LdpVc` is supported
-        for resolved_credential in resolved_credentials {
-            match resolved_credential {
-                CredentialFormatProfile::LdpVc { .. } => Ok(()),
-
-                CredentialFormatProfile::JwtVcJson { .. } => {
-                    Err(CredentialIssuerError::UnsupportedCredentialFormat {
-                        requested_format: "jwt_vs_json".to_owned(),
-                        supported_formats: vec!["ldp_vc".to_owned()],
-                    })
-                }
-
-                CredentialFormatProfile::JwtVcJsonLd { .. } => {
-                    Err(CredentialIssuerError::UnsupportedCredentialFormat {
-                        requested_format: "jwt_vs_json-ld".to_owned(),
-                        supported_formats: vec!["ldp_vc".to_owned()],
-                    })
-                }
-
-                CredentialFormatProfile::MsoMdoc { .. } => {
-                    Err(CredentialIssuerError::UnsupportedCredentialFormat {
-                        requested_format: "mso_mdoc".to_owned(),
-                        supported_formats: vec!["ldp_vc".to_owned()],
-                    })
-                }
-            }?;
-        }
+        //
+        // The resulting value is omitted as we use this check for now that they all reference a
+        // credential inside the `issuer_metadata`
+        let _ = Into::<CredentialOrIds>::into(credentials).resolve_all(issuer_metadata)?;
 
         // Create a credential offer based on the input
         let credential_offer = CredentialOffer::new(
@@ -267,14 +244,17 @@ impl CredentialIssuer {
             pre_authorized_code_flow,
         );
 
-        // Create a url from the credential offer
-        let credential_offer_url = credential_offer.to_url()?;
+        // url-encode the credential offer
+        let credential_offer_url_encoded = credential_offer.url_encode()?;
 
-        // Prepend the credential offer url if it is provided
-        let credential_offer_url = match credential_offer_endpoint {
-            Some(e) => format!("{e}/credential_offer?credential_offer={credential_offer_url}"),
-            None => format!("/credential_offer?credential_offer={credential_offer_url}"),
-        };
+        // Get the url prefix
+        // This is a deeplink if no `credential_offer_endpoint` is provided
+        let credential_offer_url_prefix = credential_offer_endpoint
+            .clone()
+            .map_or("openid-credential-offer://".to_owned(), |u| format!("{u}?"));
+
+        let credential_offer_url =
+            format!("{credential_offer_url_prefix}credential_offer={credential_offer_url_encoded}");
 
         Ok((credential_offer, credential_offer_url))
     }
@@ -298,7 +278,7 @@ mod test_credential {
                     order: None,
                 },
             )],
-            &Some(String::default()),
+            &None,
             &None,
             &Some(PreAuthorizedCodeFlow {
                 code: "ABC".to_owned(),
@@ -307,7 +287,7 @@ mod test_credential {
         )
         .expect("Unable to create the credential offer");
 
-        assert_eq!(url, "/credential_offer?credential_offer=%7B%22credential_issuer%22%3A%22%22%2C%22credentials%22%3A%5B%7B%22Credential%22%3A%7B%22format%22%3A%22ldp_vc%22%2C%22%40context%22%3A%5B%22context_one%22%5D%2C%22types%22%3A%5B%22type_one%22%5D%7D%7D%5D%2C%22grants%22%3A%7B%22urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Apre-authorized_code%22%3A%7B%22pre-authorized_code%22%3A%22ABC%22%7D%7D%7D");
+        assert_eq!(url, "openid-credential-offer://credential_offer=%7B%22credential_issuer%22%3A%22%22%2C%22credentials%22%3A%5B%7B%22Credential%22%3A%7B%22format%22%3A%22ldp_vc%22%2C%22%40context%22%3A%5B%22context_one%22%5D%2C%22types%22%3A%5B%22type_one%22%5D%7D%7D%5D%2C%22grants%22%3A%7B%22urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Apre-authorized_code%22%3A%7B%22pre-authorized_code%22%3A%22ABC%22%7D%7D%7D");
 
         assert_eq!(offer.credential_issuer, String::new());
 
@@ -339,28 +319,6 @@ mod test_credential {
         );
         let expect = Err(CredentialIssuerError::CredentialIdNotInIssuerMetadata {
             id: "id_one".to_owned(),
-        });
-        assert_eq!(result, expect);
-    }
-
-    #[test]
-    fn should_error_when_supplying_credential_with_invalid_format() {
-        let result = CredentialIssuer::create_offer(
-            &CredentialIssuerMetadata::default(),
-            &[&CredentialOrId::Credential(
-                CredentialFormatProfile::MsoMdoc {
-                    doctype: "1".to_owned(),
-                    claims: None,
-                    order: None,
-                },
-            )],
-            &Some(String::default()),
-            &None,
-            &Some(PreAuthorizedCodeFlow::default()),
-        );
-        let expect = Err(CredentialIssuerError::UnsupportedCredentialFormat {
-            requested_format: "mso_mdoc".to_owned(),
-            supported_formats: vec!["ldp_vc".to_owned()],
         });
         assert_eq!(result, expect);
     }
