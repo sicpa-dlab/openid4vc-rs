@@ -8,7 +8,8 @@ use serde_json::Value;
 /// accepts any `serde_json::Value` type.
 #[derive(Debug, Default, Serialize)]
 pub struct ErrorInformation {
-    /// Generic error code. See the specific error implementations, like [`CredentialIssuerError`]
+    /// Generic error code. See the specific error implementations, like
+    /// [`crate::credential_issuer::error::CredentialIssuerError`]
     /// for the codes it defines
     pub code: u32,
 

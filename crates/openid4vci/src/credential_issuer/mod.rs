@@ -9,7 +9,7 @@ use crate::types::credential_issuer_metadata::CredentialIssuerMetadata;
 /// Error module for the credential issuance module
 pub mod error;
 
-/// Enum that defines a type which may contain a [`Credential`] type or a string
+/// Enum that defines a type which may contain a [`CredentialFormatProfile`] type or a string
 #[derive(Clone)]
 pub enum CredentialOrId {
     /// A full nested Credential object
@@ -38,8 +38,8 @@ impl CredentialOrId {
                     .find(|c| c.id == Some(s.to_string()))
                     .map(|c| c.format.clone());
 
-                credential.ok_or_else(|| {
-                    CredentialIssuerError::CredentialIdNotInIssuerMetadata { id: s.clone() }
+                credential.ok_or_else(|| CredentialIssuerError::CredentialIdNotInIssuerMetadata {
+                    id: s.clone(),
                 })
             }
         }
@@ -108,6 +108,8 @@ impl CredentialIssuer {
     ///
     /// - When the authorized flow option is supplied
     /// - When a credential id is supplied and could not be located inside the [`CredentialIssuerMetadata`]
+    /// - When a credential is supplied with an invalid format. For now, only `ldp_vc` is supported
+    ///
     pub fn create_offer(
         issuer_metadata: &CredentialIssuerMetadata,
         credentials: &[&CredentialOrId],
@@ -122,7 +124,37 @@ impl CredentialIssuer {
 
         // Resolve all the credential ids, if supplied
         // This also checks if the credential is supported by the issuer
-        let _credentials = Into::<CredentialOrIds>::into(credentials).resolve_all(issuer_metadata)?;
+        let credentials =
+            Into::<CredentialOrIds>::into(credentials).resolve_all(issuer_metadata)?;
+
+        // Match statement to extract the values from the supported credentials
+        // Only `CredentialFormatProfile::LdpVc` is supported
+        for credential in credentials {
+            match credential {
+                CredentialFormatProfile::LdpVc { .. } => Ok(()),
+
+                CredentialFormatProfile::JwtVcJson { .. } => {
+                    Err(CredentialIssuerError::UnsupportedCredentialFormat {
+                        requested_format: "jwt_vs_json".to_owned(),
+                        supported_formats: vec!["ldp_vc".to_owned()],
+                    })
+                }
+
+                CredentialFormatProfile::JwtVcJsonLd { .. } => {
+                    Err(CredentialIssuerError::UnsupportedCredentialFormat {
+                        requested_format: "jwt_vs_json-ld".to_owned(),
+                        supported_formats: vec!["ldp_vc".to_owned()],
+                    })
+                }
+
+                CredentialFormatProfile::MsoMdoc { .. } => {
+                    Err(CredentialIssuerError::UnsupportedCredentialFormat {
+                        requested_format: "mso_mdoc".to_owned(),
+                        supported_formats: vec!["ldp_vc".to_owned()],
+                    })
+                }
+            }?;
+        }
 
         Ok(())
     }
@@ -156,7 +188,31 @@ mod test_credential {
             &None,
             &Some(PreAuthorizedCodeFlow::default()),
         );
-        let expect = Err(CredentialIssuerError::CredentialIdNotInIssuerMetadata { id: "id_one".to_owned() });
+        let expect = Err(CredentialIssuerError::CredentialIdNotInIssuerMetadata {
+            id: "id_one".to_owned(),
+        });
+        assert_eq!(result, expect);
+    }
+
+    #[test]
+    fn should_error_when_supplying_credential_with_invalid_format() {
+        let result = CredentialIssuer::create_offer(
+            &CredentialIssuerMetadata::default(),
+            &[&CredentialOrId::Credential(
+                CredentialFormatProfile::MsoMdoc {
+                    doctype: "1".to_owned(),
+                    claims: None,
+                    order: None,
+                },
+            )],
+            &Some(String::default()),
+            &None,
+            &Some(PreAuthorizedCodeFlow::default()),
+        );
+        let expect = Err(CredentialIssuerError::UnsupportedCredentialFormat {
+            requested_format: "mso_mdoc".to_owned(),
+            supported_formats: vec!["ldp_vc".to_owned()],
+        });
         assert_eq!(result, expect);
     }
 }

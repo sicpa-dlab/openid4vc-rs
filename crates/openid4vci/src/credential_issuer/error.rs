@@ -1,10 +1,10 @@
 use serde::Serialize;
 use thiserror::Error;
 
-/// Result type which automatically sets the error type to `CredentialIssuerError`
+/// Result type which automatically sets the error type to [`CredentialIssuerError`]
 pub type Result<T> = std::result::Result<T, CredentialIssuerError>;
 
-/// Error enum for development when an error occurs related to the `Credential` struct.
+/// Error enum for development when an error occurs related to the [`super::CredentialIssuer`] struct.
 #[repr(u32)]
 #[derive(Error, Debug, PartialEq, Clone, AsRefStr, Serialize)]
 #[serde(untagged)]
@@ -14,13 +14,23 @@ pub enum CredentialIssuerError {
     #[error("The Authorized flow is currently not supported")]
     AuthorizedFlowNotSupported = 100,
 
-    /// Authorized code flow is currently not supported. The option is already added to supply the
-    /// functionality to keep breaking changes to a minimum
-    #[error("The id `{id}` does not refer to a credential format inside the issuer metadata")]
-    CredentialIdNotInIssuerMetadata { 
-        /// Identifier from the credential that could not be found in the `IssuerMetadata`
-        id: String 
+    /// An unsupported credential format was requested.
+    #[error("Requested an unsupported credential format `{requested_format}`. Only `{supported_formats:?}` are allowed.")]
+    UnsupportedCredentialFormat {
+        /// User requested credential format
+        requested_format: String,
+
+        /// List of supported credential formats
+        supported_formats: Vec<String>,
     } = 101,
+
+    /// The credential identifier inside the [`super::CredentialOrIds`] object could not be resolved
+    /// with in the [`super::CredentialIssuerMetadata`]
+    #[error("The id `{id}` does not refer to a credential format inside the issuer metadata")]
+    CredentialIdNotInIssuerMetadata {
+        /// Identifier from the credential that could not be found in the `IssuerMetadata`
+        id: String,
+    } = 102,
 }
 
 error_impl!(CredentialIssuerError);
@@ -30,11 +40,34 @@ mod credential_issuer_error_tests {
     use super::*;
 
     #[test]
-    fn should_extract_correct_information() {
+    fn should_extract_correct_information_for_authorized_flow_not_supported() {
         let error_information = CredentialIssuerError::AuthorizedFlowNotSupported.information();
 
         assert!(error_information.code == 100);
         assert!(error_information.name == "AuthorizedFlowNotSupported");
         assert!(error_information.description == "The Authorized flow is currently not supported");
+        assert!(error_information.additional_information == serde_json::Value::Null);
+    }
+
+    #[test]
+    fn should_extract_correct_information_for_unsupported_credential_format() {
+        let error_information = CredentialIssuerError::UnsupportedCredentialFormat {
+            requested_format: "mso_mdoc".to_owned(),
+            supported_formats: vec!["ldp_vc".to_owned()],
+        }
+        .information();
+
+        assert!(error_information.code == 101);
+        assert!(error_information.name == "UnsupportedCredentialFormat");
+        assert!(error_information.description == "Requested an unsupported credential format `mso_mdoc`. Only `[\"ldp_vc\"]` are allowed.");
+    }
+
+    #[test]
+    fn should_extract_correct_information_for_credential_id_not_in_issuer_metadata() {
+        let error_information = CredentialIssuerError::CredentialIdNotInIssuerMetadata { id: "cred_id_one".to_owned() }.information();
+
+        assert!(error_information.code == 102);
+        assert!(error_information.name == "CredentialIdNotInIssuerMetadata");
+        assert!(error_information.description == "The id `cred_id_one` does not refer to a credential format inside the issuer metadata");
     }
 }
