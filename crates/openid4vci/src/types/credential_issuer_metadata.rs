@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::credential::CredentialFormatProfile;
+
 /// Struct mapping the `issuer_metadata` as defined in section 10.2.3 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -38,13 +40,14 @@ pub struct CredentialIssuerMetadata {
 
 /// Struct mapping the `credential_supported` as defined in section 10.2.3.1 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential-metadata-object)
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CredentialSupported {
     /// A JSON string identifying the format of this credential, e.g. jwt_vc_json or ldp_vc.
     /// Depending on the format value, the object contains further elements defining the type and
     /// (optionally) particular claims the credential MAY contain, and information how to display
     /// the credential.
-    pub format: String,
+    #[serde(flatten)]
+    pub format: CredentialFormatProfile,
 
     /// A JSON string identifying the respective object. The value MUST be unique across all
     /// credentials_supported entries in the Credential Issuer Metadata.

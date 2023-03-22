@@ -13,6 +13,14 @@ pub enum CredentialIssuerError {
     /// functionality to keep breaking changes to a minimum
     #[error("The Authorized flow is currently not supported")]
     AuthorizedFlowNotSupported = 100,
+
+    /// Authorized code flow is currently not supported. The option is already added to supply the
+    /// functionality to keep breaking changes to a minimum
+    #[error("The id `{id}` does not refer to a credential format inside the issuer metadata")]
+    CredentialIdNotInIssuerMetadata { 
+        /// Identifier from the credential that could not be found in the `IssuerMetadata`
+        id: String 
+    } = 101,
 }
 
 error_impl!(CredentialIssuerError);
