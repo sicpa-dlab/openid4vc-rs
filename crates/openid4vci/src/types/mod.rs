@@ -6,3 +6,6 @@ pub mod credential_issuer_metadata;
 
 /// Module containing a struct for a credential request
 pub mod credential_request;
+
+/// Module containing a struct for the authorization server metadata
+pub mod authorization_server_metadata;
