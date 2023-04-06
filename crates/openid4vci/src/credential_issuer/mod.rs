@@ -1,10 +1,16 @@
-use serde::Deserialize;
-use serde::Serialize;
-
 use self::error::CredentialIssuerError;
-use self::error::Result;
+use self::error::CredentialIssuerResult;
+use crate::jwt::ProofJwt;
+use crate::jwt::ProofJwtAlgorithm;
 use crate::types::credential::CredentialFormatProfile;
 use crate::types::credential_issuer_metadata::CredentialIssuerMetadata;
+use crate::types::credential_request::CredentialRequest;
+use crate::types::credential_request::CredentialRequestProof;
+use crate::validate::Validatable;
+use crate::validate::ValidationError;
+use serde::Deserialize;
+use serde::Serialize;
+use std::str::FromStr;
 
 /// Error module for the credential issuance module
 pub mod error;
@@ -35,7 +41,7 @@ impl CredentialOrId {
     pub fn resolve(
         &self,
         issuer_metadata: &CredentialIssuerMetadata,
-    ) -> Result<CredentialFormatProfile> {
+    ) -> CredentialIssuerResult<CredentialFormatProfile> {
         match self {
             Self::Credential(c) => Ok(c.clone()),
             Self::CredentialId(s) => {
@@ -72,7 +78,7 @@ impl CredentialOrIds {
     pub fn resolve_all(
         &self,
         issuer_metadata: &CredentialIssuerMetadata,
-    ) -> Result<Vec<CredentialFormatProfile>> {
+    ) -> CredentialIssuerResult<Vec<CredentialFormatProfile>> {
         let mut format_profiles = vec![];
         for credential in &self.0 {
             let credential = credential.resolve(issuer_metadata)?;
@@ -196,11 +202,8 @@ impl CredentialOffer {
     /// # Errors
     ///
     /// - When the structure could not url encoded
-    pub fn url_encode(&self) -> Result<String> {
-        let s =
-            serde_json::to_string(self).map_err(|e| CredentialIssuerError::SerializationError {
-                error_message: e.to_string(),
-            })?;
+    pub fn url_encode(&self) -> CredentialIssuerResult<String> {
+        let s = serde_json::to_string(self).map_err(ValidationError::from)?;
         let url = urlencoding::encode(&s).into_owned();
         Ok(url)
     }
@@ -232,6 +235,32 @@ pub struct CredentialOfferGrants {
 /// Structure that contains the functionality for the credential issuer
 pub struct CredentialIssuer;
 
+/// Return type of the [`CredentialIssuer::evaluate_credential_request`]
+#[derive(Debug, Serialize, PartialEq, Eq, Default)]
+pub struct CredentialIssuerEvaluateRequestResponse {
+    /// Algorithm used for signing
+    algorithm: Option<ProofJwtAlgorithm>,
+
+    /// Public key bytes that can be used for verification
+    public_key: Option<Vec<u8>>,
+
+    /// Message that needs to be verified by the consumer
+    message: Option<Vec<u8>>,
+
+    /// Signature over the message, using the public key, that can be used by the consumer to
+    /// verify it
+    signature: Option<Vec<u8>>,
+}
+
+/// Additional struct for metadata that will be used to verify
+///
+/// TODO: include nonce
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Hash)]
+pub struct CredentialIssuerEvaluateRequestOptions {
+    /// Id of the client that will be checked whether it is equal to the `iss` field inside the JWK
+    client_id: Option<String>,
+}
+
 impl CredentialIssuer {
     /// Create a credential offer
     ///
@@ -251,7 +280,9 @@ impl CredentialIssuer {
         credential_offer_endpoint: &Option<String>,
         authorized_code_flow: &Option<AuthorizedCodeFlow>,
         pre_authorized_code_flow: &Option<PreAuthorizedCodeFlow>,
-    ) -> Result<(CredentialOffer, String)> {
+    ) -> CredentialIssuerResult<(CredentialOffer, String)> {
+        issuer_metadata.validate()?;
+
         // authorized code flow is only supported for now
         if authorized_code_flow.is_some() {
             return Err(CredentialIssuerError::AuthorizedFlowNotSupported);
@@ -288,10 +319,71 @@ impl CredentialIssuer {
 
         Ok((credential_offer, credential_offer_url))
     }
+
+    /// Evaluate a credential request
+    ///
+    /// This function evaluates a credential request, with the associated metadata, based on
+    /// section 7.2 of the [openid4vci
+    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-7.2).
+    ///
+    /// It returns a tuple of type [`CredentialIssuerEvaluateRequestResponse`]
+    ///
+    /// # Errors
+    ///
+    /// - When the `credential_request` is incorrectly formatted
+    /// - When the `issuer_metadata` is incorrectly formatted
+    /// - When the requested format is not in the issuer metadata
+    ///
+    pub fn evaluate_credential_request(
+        credential_request: &CredentialRequest,
+        issuer_metadata: &CredentialIssuerMetadata,
+        _credential_offer: Option<()>,
+        request_options: &CredentialIssuerEvaluateRequestOptions,
+        // todo: correct type
+        did_document: &Option<ssi_dids::Document>,
+    ) -> CredentialIssuerResult<CredentialIssuerEvaluateRequestResponse> {
+        issuer_metadata.validate()?;
+        credential_request.validate()?;
+
+        // Fetch the supported formats from the issuer metadata
+        let issuer_supported_formats: Vec<CredentialFormatProfile> = issuer_metadata
+            .credentials_supported
+            .iter()
+            .map(|s| s.format.clone())
+            .collect();
+
+        // Check whether the requested credential is included inside the supported formats
+        // of the issuer
+        if !issuer_supported_formats.contains(&credential_request.format) {
+            return Err(CredentialIssuerError::InvalidRequestedCredential {
+                requested_credential: Box::new(credential_request.format.clone()),
+                supported_formats: issuer_supported_formats,
+            });
+        }
+
+        // Verify that the JWT proof is valid, but do not check the signature
+        if let Some(CredentialRequestProof { jwt, .. }) = &credential_request.proof {
+            let jwt = ProofJwt::from_str(jwt)?;
+            jwt.verify(request_options.client_id.as_deref())?;
+
+            let (public_key, algorithm) = jwt.extract_key_and_alg(did_document)?;
+            let message = jwt.to_signable_message()?;
+            let signature = jwt.extract_signature()?;
+
+            return Ok(CredentialIssuerEvaluateRequestResponse {
+                algorithm: Some(algorithm),
+                public_key: Some(public_key),
+                message: Some(message),
+                signature: Some(signature),
+            });
+        }
+
+        Ok(CredentialIssuerEvaluateRequestResponse::default())
+    }
 }
 
 #[cfg(test)]
-mod test_credential {
+mod test_create_credential_offer {
     use crate::credential_issuer::error::CredentialIssuerError;
 
     use super::*;
@@ -349,5 +441,62 @@ mod test_credential {
             id: "id_one".to_owned(),
         });
         assert_eq!(result, expect);
+    }
+}
+
+#[cfg(test)]
+mod test_evaluate_credential_request {
+    use super::*;
+    use crate::credential_issuer::error::CredentialIssuerError;
+    use crate::jwt::error::JwtError;
+    use crate::types::credential_issuer_metadata::CredentialSupported;
+
+    fn credential_format() -> CredentialFormatProfile {
+        CredentialFormatProfile::LdpVc {
+            context: vec!["context".to_owned()],
+            types: vec![],
+            credential_subject: None,
+            order: None,
+        }
+    }
+
+    #[test]
+    fn should_fail_when_kid_is_did_and_no_did_doc_supplied() {
+        let credential_request = CredentialRequest {
+            proof: Some(CredentialRequestProof {
+                proof_type: "JWT".to_owned(),
+                jwt: "eyJraWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxYzI3NmUxMmVjMjEva2V5cy8xIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJvcGVuaWQ0dmNpLXByb29mK2p3dCJ9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned()
+            }),
+            format: credential_format(),
+        };
+        let issuer_metadata = CredentialIssuerMetadata {
+            credentials_supported: vec![CredentialSupported {
+                format: credential_format(),
+                display: None,
+                id: None,
+                cryptographic_suites_supported: None,
+                cryptographic_binding_mehtods_supported: None,
+            }],
+            ..Default::default()
+        };
+        let credential_offer = None;
+        let request_options = CredentialIssuerEvaluateRequestOptions {
+            client_id: Some("s6BhdRkqt3".to_owned()),
+        };
+
+        let evaluated = CredentialIssuer::evaluate_credential_request(
+            &credential_request,
+            &issuer_metadata,
+            credential_offer,
+            &request_options,
+            &None,
+        );
+
+        assert_eq!(
+            evaluated,
+            Err(CredentialIssuerError::JwtError(
+                JwtError::NoDidDocumentProvidedForKidAsDid
+            ))
+        );
     }
 }

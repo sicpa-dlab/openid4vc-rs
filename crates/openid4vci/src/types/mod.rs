@@ -3,3 +3,6 @@ pub mod credential;
 
 /// Module containing a struct for the issuer metadata
 pub mod credential_issuer_metadata;
+
+/// Module containing a struct for a credential request
+pub mod credential_request;
