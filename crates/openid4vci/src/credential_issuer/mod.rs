@@ -11,6 +11,7 @@ pub mod error;
 
 /// Enum that defines a type which may contain a [`CredentialFormatProfile`] type or a string
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
 pub enum CredentialOrId {
     /// A URI referencing a credential object on the [`CredentialIssuerMetadata`]
     CredentialId(String),
@@ -88,6 +89,33 @@ impl From<&[&CredentialOrId]> for CredentialOrIds {
     }
 }
 
+impl<T> From<Vec<T>> for CredentialOrIds
+where
+    T: Into<CredentialOrId> + Clone,
+{
+    fn from(value: Vec<T>) -> Self {
+        Self::new(value.iter().map(|v| (*v).clone().into()).collect())
+    }
+}
+
+impl From<String> for CredentialOrId {
+    fn from(value: String) -> Self {
+        Self::CredentialId(value)
+    }
+}
+
+impl From<&str> for CredentialOrId {
+    fn from(value: &str) -> Self {
+        Self::CredentialId(value.to_owned())
+    }
+}
+
+impl From<CredentialFormatProfile> for CredentialOrId {
+    fn from(value: CredentialFormatProfile) -> Self {
+        Self::Credential(value)
+    }
+}
+
 /// Field that defined the optional values for when the authorized code flow is used
 #[derive(Default, Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct AuthorizedCodeFlow {
@@ -149,13 +177,13 @@ impl CredentialOffer {
     #[must_use]
     pub fn new(
         credential_issuer: &str,
-        credentials: &[&CredentialOrId],
+        credentials: CredentialOrIds,
         authorized_code_flow: &Option<AuthorizedCodeFlow>,
         pre_authorized_code_flow: &Option<PreAuthorizedCodeFlow>,
     ) -> Self {
         Self {
             credential_issuer: credential_issuer.to_owned(),
-            credentials: credentials.into(),
+            credentials,
             grants: CredentialOfferGrants {
                 authorized_code_flow: authorized_code_flow.clone(),
                 pre_authorized_code_flow: pre_authorized_code_flow.clone(),
@@ -219,7 +247,7 @@ impl CredentialIssuer {
     ///
     pub fn create_offer(
         issuer_metadata: &CredentialIssuerMetadata,
-        credentials: &[&CredentialOrId],
+        credentials: impl Into<CredentialOrIds>,
         credential_offer_endpoint: &Option<String>,
         authorized_code_flow: &Option<AuthorizedCodeFlow>,
         pre_authorized_code_flow: &Option<PreAuthorizedCodeFlow>,
@@ -229,12 +257,14 @@ impl CredentialIssuer {
             return Err(CredentialIssuerError::AuthorizedFlowNotSupported);
         }
 
+        let credentials = credentials.into();
+
         // Resolve all the credential ids, if supplied
         // This also checks if the credential is supported by the issuer
         //
         // The resulting value is omitted as we use this check for now that they all reference a
         // credential inside the `issuer_metadata`
-        let _ = Into::<CredentialOrIds>::into(credentials).resolve_all(issuer_metadata)?;
+        let _ = credentials.resolve_all(issuer_metadata)?;
 
         // Create a credential offer based on the input
         let credential_offer = CredentialOffer::new(
@@ -270,14 +300,12 @@ mod test_credential {
     fn happy_flow() {
         let (offer, url) = CredentialIssuer::create_offer(
             &CredentialIssuerMetadata::default(),
-            &[&CredentialOrId::Credential(
-                CredentialFormatProfile::LdpVc {
-                    context: vec!["context_one".to_owned()],
-                    types: vec!["type_one".to_owned()],
-                    credential_subject: None,
-                    order: None,
-                },
-            )],
+            vec![CredentialOrId::Credential(CredentialFormatProfile::LdpVc {
+                context: vec!["context_one".to_owned()],
+                types: vec!["type_one".to_owned()],
+                credential_subject: None,
+                order: None,
+            })],
             &None,
             &None,
             &Some(PreAuthorizedCodeFlow {
@@ -287,7 +315,7 @@ mod test_credential {
         )
         .expect("Unable to create the credential offer");
 
-        assert_eq!(url, "openid-credential-offer://credential_offer=%7B%22credential_issuer%22%3A%22%22%2C%22credentials%22%3A%5B%7B%22Credential%22%3A%7B%22format%22%3A%22ldp_vc%22%2C%22%40context%22%3A%5B%22context_one%22%5D%2C%22types%22%3A%5B%22type_one%22%5D%7D%7D%5D%2C%22grants%22%3A%7B%22urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Apre-authorized_code%22%3A%7B%22pre-authorized_code%22%3A%22ABC%22%7D%7D%7D");
+        assert_eq!(url, "openid-credential-offer://credential_offer=%7B%22credential_issuer%22%3A%22%22%2C%22credentials%22%3A%5B%7B%22format%22%3A%22ldp_vc%22%2C%22%40context%22%3A%5B%22context_one%22%5D%2C%22types%22%3A%5B%22type_one%22%5D%7D%5D%2C%22grants%22%3A%7B%22urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Apre-authorized_code%22%3A%7B%22pre-authorized_code%22%3A%22ABC%22%7D%7D%7D");
 
         assert_eq!(offer.credential_issuer, String::new());
 
@@ -299,7 +327,7 @@ mod test_credential {
     fn should_error_when_using_authorized_flow() {
         let result = CredentialIssuer::create_offer(
             &CredentialIssuerMetadata::default(),
-            &[],
+            CredentialOrIds::new(vec![]),
             &Some(String::default()),
             &Some(AuthorizedCodeFlow { issuer_state: None }),
             &None,
@@ -312,7 +340,7 @@ mod test_credential {
     fn should_error_when_supplying_credential_id_that_is_not_in_issuer_metadata() {
         let result = CredentialIssuer::create_offer(
             &CredentialIssuerMetadata::default(),
-            &[&CredentialOrId::CredentialId("id_one".to_owned())],
+            vec!["id_one"],
             &Some(String::default()),
             &None,
             &Some(PreAuthorizedCodeFlow::default()),

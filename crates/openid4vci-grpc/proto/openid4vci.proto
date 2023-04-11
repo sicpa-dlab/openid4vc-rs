@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package openid4vci;
+
+service CredentialIssuerService {
+    rpc CreateOffer (CreateOfferRequest) returns (CreateOfferResponse);
+}
+
+message CreateOfferRequest {
+  bytes issuer_metadata = 1;
+  bytes credentials = 2;
+  optional bytes credential_offer_endpoint = 3;
+  optional bytes authorized_code_flow = 4;
+  optional bytes pre_authorized_code_flow = 5;
+}
+
+message CreateOfferResponse {
+  bytes credential_offer = 1;
+  bytes credential_offer_url = 2;
+}

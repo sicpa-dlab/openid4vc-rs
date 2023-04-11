@@ -2,9 +2,6 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-/// FIXME: These might miss some properties, like `id`, `cryptographic_binding_methods_supported`,
-/// etc.
-///
 /// A struct mapping a `credential` type as defined in Appendix E in the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#format_profiles)
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

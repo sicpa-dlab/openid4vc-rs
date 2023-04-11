@@ -1,12 +1,15 @@
+use std::fmt;
+
 use serde::Serialize;
 use serde_json::Value;
+use thiserror::Error;
 
 /// Generic error structure that can be send over FFI, for example, that contains machine and human
 /// readable information to resolve error.
 ///
 /// `additional_information` can be used to help the user of this library with more information. It
 /// accepts any `serde_json::Value` type.
-#[derive(Debug, Default, Serialize)]
+#[derive(Error, Debug, Default, Serialize)]
 pub struct ErrorInformation {
     /// Generic error code. See the specific error implementations, like
     /// [`crate::credential_issuer::error::CredentialIssuerError`]
@@ -22,6 +25,16 @@ pub struct ErrorInformation {
     /// Additional information that might help the user debug the error
     #[serde(skip_serializing_if = "serde_json::Value::is_null")]
     pub additional_information: Value,
+}
+
+impl fmt::Display for ErrorInformation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = serde_json::to_string(self);
+        match s {
+            Ok(s) => write!(f, "{s}"),
+            Err(e) => write!(f, "{e}"),
+        }
+    }
 }
 
 impl ErrorInformation {
