@@ -1,10 +1,7 @@
 # OpenID4VC
 
-This repository contains the code for an implementation of the [openid4vci
-specification
-1.0](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
-and the [openid4vp specification
-1.0](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html).
+This repository contains the code for an implementation of the [openid4vci specification 1.0](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
+and the [openid4vp specification 1.0](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html).
 
 ## Structure
 
@@ -13,14 +10,14 @@ these packages have their uses which are described below.
 
 ### `openid4vci`
 
-This package will be an implementation of the [openid4vci
-specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
+This package will be an implementation of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
 as a consumable library. This means that the library will not contain any
 endpoints as required by the specification. The functionality can be seen by
 the two following points:
 
+1. Create objects for the openid4vci specification (such as the credential offer)
 1. Evaluate incoming requests
-2. Generate error and success responses
+1. Generate error and success responses
 
 ### `openid4vci-grpc`
 
