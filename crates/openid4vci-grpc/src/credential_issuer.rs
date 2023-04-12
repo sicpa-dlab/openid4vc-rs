@@ -37,9 +37,6 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
         let pre_authorized_code_flow =
             deserialize_optional_slice::<PreAuthorizedCodeFlow>(&pre_authorized_code_flow)?;
 
-        let credential_offer_endpoint =
-            deserialize_optional_slice::<String>(&credential_offer_endpoint)?;
-
         let credentials = deserialize_slice::<CredentialOrIds>(&credentials)?;
 
         let (credential_offer, credential_offer_url) = CredentialIssuer::create_offer(
