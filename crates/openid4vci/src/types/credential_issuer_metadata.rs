@@ -34,8 +34,8 @@ pub struct CredentialIssuerMetadata {
     pub credentials_supported: Vec<CredentialSupported>,
 
     /// All the remaining fields that are not captured in the other fields.
-    #[serde(flatten)]
-    pub additional_fields: HashMap<String, Value>,
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    pub additional_fields: Option<HashMap<String, Value>>,
 }
 
 /// Struct mapping the `credential_supported` as defined in section 10.2.3.1 of the [openid4vci
