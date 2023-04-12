@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package openid4vci;
+
+service AccessTokenService {
+    rpc CreateErrorResponse (CreateAccessTokenErrorResponseRequest) returns (CreateAccessTokenErrorResponseResponse);
+}
+
+message CreateAccessTokenErrorResponseRequest {
+  string error = 1;
+  optional string error_description = 2;
+  optional string error_uri = 3;
+}
+
+message CreateAccessTokenErrorResponseResponse {
+  bytes error_response = 1;
+}
