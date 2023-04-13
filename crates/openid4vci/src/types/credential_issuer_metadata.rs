@@ -1,7 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use crate::validate::{Validatable, ValidationError};
 
 use super::credential::CredentialFormatProfile;
 
@@ -40,7 +42,7 @@ pub struct CredentialIssuerMetadata {
 
 /// Struct mapping the `credential_supported` as defined in section 10.2.3.1 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential-metadata-object)
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct CredentialSupported {
     /// A JSON string identifying the format of this credential, e.g. jwt_vc_json or ldp_vc.
     /// Depending on the format value, the object contains further elements defining the type and
@@ -50,7 +52,7 @@ pub struct CredentialSupported {
     pub format: CredentialFormatProfile,
 
     /// A JSON string identifying the respective object. The value MUST be unique across all
-    /// credentials_supported entries in the Credential Issuer Metadata.
+    /// `credentials_supported` entries in the Credential Issuer Metadata.
     pub id: Option<String>,
 
     /// Array of case sensitive strings that identify how the Credential is bound to the identifier
@@ -86,7 +88,7 @@ pub struct CredentialSupported {
 
 /// Struct mapping the `display` type as defined in section 10.2.3.1 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-10.2.3.1)
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub struct DisplayProperties {
     /// display name for the Credential.
     pub name: String,
@@ -114,11 +116,72 @@ pub struct DisplayProperties {
 
 /// Struct mapping the `logo` type as defined in section 10.2.3.1 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-10.2.3.1)
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DisplayLogo {
     /// URL where the Wallet can obtain a logo of the Credential from the Credential Issuer.
     pub url: Option<String>,
 
     /// String value of an alternative text of a logo image.
     pub alt_text: Option<String>,
+}
+
+impl Validatable for CredentialIssuerMetadata {
+    fn validate(&self) -> Result<(), ValidationError> {
+        let mut uniques = HashSet::new();
+        let are_ids_unique = &self
+            .credentials_supported
+            .iter()
+            .all(|supported_credential| {
+                // Only check for uniqueness if the value is supplied
+                if let Some(id) = &supported_credential.id {
+                    uniques.insert(id)
+                // If no value is supplied, we return true to `Iterator::all`
+                } else {
+                    true
+                }
+            });
+
+        if !are_ids_unique {
+            return Err(ValidationError::Any {
+                validation_message:
+                    "Ids in supported credentials of the issuer metadata are not unique".to_owned(),
+            });
+        }
+
+        for credential in &self.credentials_supported {
+            credential.validate()?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Validatable for CredentialSupported {
+    fn validate(&self) -> Result<(), ValidationError> {
+        self.format.validate()?;
+
+        if let Some(display) = &self.display {
+            for property in display {
+                property.validate()?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Validatable for DisplayProperties {
+    fn validate(&self) -> Result<(), ValidationError> {
+        if let Some(logo) = &self.logo {
+            logo.validate()?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Validatable for DisplayLogo {
+    fn validate(&self) -> Result<(), ValidationError> {
+        Ok(())
+    }
 }

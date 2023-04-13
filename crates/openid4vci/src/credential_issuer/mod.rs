@@ -1,10 +1,18 @@
-use serde::Deserialize;
-use serde::Serialize;
+use std::str::FromStr;
 
 use self::error::CredentialIssuerError;
-use self::error::Result;
+use self::error::CredentialIssuerResult;
+use crate::jwt::ProofJwt;
+use crate::jwt::ProofJwtAlgorithm;
+use crate::types::authorization_server_metadata::AuthorizationServerMetadata;
 use crate::types::credential::CredentialFormatProfile;
 use crate::types::credential_issuer_metadata::CredentialIssuerMetadata;
+use crate::types::credential_request::CredentialRequest;
+use crate::types::credential_request::CredentialRequestProof;
+use crate::validate::Validatable;
+use crate::validate::ValidationError;
+use serde::Deserialize;
+use serde::Serialize;
 
 /// Error module for the credential issuance module
 pub mod error;
@@ -35,7 +43,7 @@ impl CredentialOrId {
     pub fn resolve(
         &self,
         issuer_metadata: &CredentialIssuerMetadata,
-    ) -> Result<CredentialFormatProfile> {
+    ) -> CredentialIssuerResult<CredentialFormatProfile> {
         match self {
             Self::Credential(c) => Ok(c.clone()),
             Self::CredentialId(s) => {
@@ -72,7 +80,7 @@ impl CredentialOrIds {
     pub fn resolve_all(
         &self,
         issuer_metadata: &CredentialIssuerMetadata,
-    ) -> Result<Vec<CredentialFormatProfile>> {
+    ) -> CredentialIssuerResult<Vec<CredentialFormatProfile>> {
         let mut format_profiles = vec![];
         for credential in &self.0 {
             let credential = credential.resolve(issuer_metadata)?;
@@ -172,6 +180,28 @@ pub struct CredentialOffer {
     pub grants: CredentialOfferGrants,
 }
 
+impl Validatable for CredentialOffer {
+    fn validate(&self) -> Result<(), ValidationError> {
+        self.credentials.validate()?;
+        self.grants.validate()?;
+
+        Ok(())
+    }
+}
+
+/// TODO: implement if required
+impl Validatable for CredentialOrIds {
+    fn validate(&self) -> Result<(), ValidationError> {
+        Ok(())
+    }
+}
+
+impl Validatable for CredentialOfferGrants {
+    fn validate(&self) -> Result<(), ValidationError> {
+        Ok(())
+    }
+}
+
 impl CredentialOffer {
     /// Constructor for a credential offer
     #[must_use]
@@ -196,11 +226,8 @@ impl CredentialOffer {
     /// # Errors
     ///
     /// - When the structure could not url encoded
-    pub fn url_encode(&self) -> Result<String> {
-        let s =
-            serde_json::to_string(self).map_err(|e| CredentialIssuerError::SerializationError {
-                error_message: e.to_string(),
-            })?;
+    pub fn url_encode(&self) -> CredentialIssuerResult<String> {
+        let s = serde_json::to_string(self).map_err(ValidationError::from)?;
         let url = urlencoding::encode(&s).into_owned();
         Ok(url)
     }
@@ -232,6 +259,32 @@ pub struct CredentialOfferGrants {
 /// Structure that contains the functionality for the credential issuer
 pub struct CredentialIssuer;
 
+/// Return type of the [`CredentialIssuer::evaluate_credential_request`]
+#[derive(Debug, Serialize, PartialEq, Eq, Default)]
+pub struct CredentialIssuerEvaluateRequestResponse {
+    /// Algorithm used for signing
+    algorithm: Option<ProofJwtAlgorithm>,
+
+    /// Public key bytes that can be used for verification
+    public_key: Option<Vec<u8>>,
+
+    /// Message that needs to be verified by the consumer
+    message: Option<Vec<u8>>,
+
+    /// Signature over the message, using the public key, that can be used by the consumer to
+    /// verify it
+    signature: Option<Vec<u8>>,
+}
+
+/// Additional struct for metadata that will be used to verify
+///
+/// TODO: include nonce
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Hash)]
+pub struct CredentialIssuerEvaluateRequestOptions {
+    /// Id of the client that will be checked whether it is equal to the `iss` field inside the JWK
+    client_id: Option<String>,
+}
+
 impl CredentialIssuer {
     /// Create a credential offer
     ///
@@ -251,7 +304,9 @@ impl CredentialIssuer {
         credential_offer_endpoint: &Option<String>,
         authorized_code_flow: &Option<AuthorizedCodeFlow>,
         pre_authorized_code_flow: &Option<PreAuthorizedCodeFlow>,
-    ) -> Result<(CredentialOffer, String)> {
+    ) -> CredentialIssuerResult<(CredentialOffer, String)> {
+        issuer_metadata.validate()?;
+
         // authorized code flow is only supported for now
         if authorized_code_flow.is_some() {
             return Err(CredentialIssuerError::AuthorizedFlowNotSupported);
@@ -288,10 +343,52 @@ impl CredentialIssuer {
 
         Ok((credential_offer, credential_offer_url))
     }
+
+    /// Evaluate a credential request
+    ///
+    /// # Errors
+    ///
+    /// - When incorrect valdiation happens on the supplied input arguments
+    /// - When a JWT is inside the proof and is not valid
+    pub fn evaluate_credential_request(
+        issuer_metadata: &CredentialIssuerMetadata,
+        credential_request: &CredentialRequest,
+        credential_offer: Option<&CredentialOffer>,
+        authorization_server_metadata: Option<&AuthorizationServerMetadata>,
+        did_document: Option<&ssi_dids::Document>,
+    ) -> CredentialIssuerResult<CredentialIssuerEvaluateRequestResponse> {
+        issuer_metadata.validate()?;
+        credential_request.validate()?;
+        if let Some(credential_offer) = credential_offer {
+            credential_offer.validate()?;
+        };
+
+        if let Some(authorization_server_metadata) = authorization_server_metadata {
+            authorization_server_metadata.validate()?;
+        };
+
+        if let Some(CredentialRequestProof { jwt, .. }) = &credential_request.proof {
+            let jwt = ProofJwt::from_str(jwt)?;
+            jwt.validate()?;
+
+            let (public_key, algorithm) = jwt.extract_key_and_alg(did_document)?;
+            let signature = jwt.extract_signature()?;
+            let message = jwt.to_signable_message()?;
+
+            return Ok(CredentialIssuerEvaluateRequestResponse {
+                public_key: Some(public_key),
+                algorithm: Some(algorithm),
+                signature: Some(signature),
+                message: Some(message),
+            });
+        };
+
+        Ok(CredentialIssuerEvaluateRequestResponse::default())
+    }
 }
 
 #[cfg(test)]
-mod test_credential {
+mod test_create_credential_offer {
     use crate::credential_issuer::error::CredentialIssuerError;
 
     use super::*;
