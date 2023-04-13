@@ -2,7 +2,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 /// Error enum for development when an error occurs related to the [`Validatable`] trait
-#[derive(Debug, Error, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Error, Clone, PartialEq, Eq, AsRefStr, Serialize)]
 #[repr(u32)]
 #[serde(untagged)]
 pub enum ValidationError {
@@ -13,6 +13,8 @@ pub enum ValidationError {
         validation_message: String,
     } = 1,
 }
+
+error_impl!(ValidationError);
 
 /// Validation result used for the [`ValidationError`]
 pub type ValidationResult<T> = std::result::Result<T, ValidationError>;
@@ -35,10 +37,10 @@ impl From<serde_json::Error> for ValidationError {
 
 /// Trait for data types which need validation of being deserialized
 pub trait Validatable {
-    /// Validate a given struct and return a consise [`ValidationError`] object
+    /// Validate a given struct and return a concise [`ValidationError`] object
     ///
     /// # Errors
     ///
-    /// - When the validation fails for the implemation
+    /// - When the validation fails for the implementation
     fn validate(&self) -> Result<(), ValidationError>;
 }

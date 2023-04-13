@@ -11,8 +11,12 @@ extern crate strum;
 mod credential_issuer;
 pub use credential_issuer::*;
 
+/// Access token module which wraps [`openid4vci::access_token`]
+mod access_token;
+pub use access_token::*;
+
 /// Error module that contains the code to convert any [`openid4vci`] error into an error that is
-/// ment for `gRPC`
+/// meant for `gRPC`
 pub mod error;
 
 /// Generated `gRPC` module based on the [protofbuf definition](../proto/openid4vci.proto).
@@ -32,6 +36,12 @@ mod grpc_openid4vci {
 /// Module for utilities regarding `gRPC`
 mod utils;
 
-pub use grpc_openid4vci::credential_issuer_service_client as client;
-pub use grpc_openid4vci::credential_issuer_service_server as server;
+pub use grpc_openid4vci::credential_issuer_service_client as credential_issuer_client;
+pub use grpc_openid4vci::credential_issuer_service_server as credential_issuer_server;
 pub use grpc_openid4vci::{CreateOfferRequest, CreateOfferResponse};
+
+pub use grpc_openid4vci::access_token_service_client as access_token_client;
+pub use grpc_openid4vci::access_token_service_server as access_token_server;
+pub use grpc_openid4vci::{
+    CreateAccessTokenErrorResponseRequest, CreateAccessTokenErrorResponseResponse,
+};
