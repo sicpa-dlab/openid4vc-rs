@@ -176,6 +176,43 @@ impl ProofJwt {
         Ok(())
     }
 
+    /// Extract the kid from the header. When `x5c` or `jwk` is used, nothing will be returned. Or
+    /// when the kid is not a did
+    ///
+    /// # Errors
+    ///
+    /// - When
+    pub fn extract_kid(&self) -> JwtResult<Option<String>> {
+        if let Some(header) = &self.header.additional_header {
+            match header {
+                ProofJwtAdditionalHeader::KeyId(key_id) => {
+                    let did = ssi_dids::DIDURL::try_from(key_id.clone()).map_err(|e| {
+                        JwtError::UnableToTransformIntoDid {
+                            kid: key_id.clone(),
+                            message: e.to_string(),
+                        }
+                    })?;
+
+                    Ok(Some(did.to_string()))
+                }
+                ProofJwtAdditionalHeader::Jwk(jwk) => {
+                    Err(JwtError::UnsupportedKeyTypeInJwtHeader {
+                        key_name: "jwk".to_owned(),
+                        key_type: jwk.clone(),
+                    })
+                }
+                ProofJwtAdditionalHeader::X5c(x5c) => {
+                    Err(JwtError::UnsupportedKeyTypeInJwtHeader {
+                        key_name: "x5c".to_owned(),
+                        key_type: x5c.clone(),
+                    })
+                }
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Extract the key and algorithm from the [`ProofJwtHeader`]
     ///
     /// # Errors
@@ -257,6 +294,7 @@ impl ProofJwtHeader {
     /// Extract the key and algorithm from the JWT header
     ///
     /// TODO: Not every method is implemented yet
+    /// TODO: reuse extract kid method
     ///
     /// # Errors
     pub fn extract_key_and_alg(
@@ -320,6 +358,7 @@ impl ProofJwtHeader {
                     }
                     ProofJwtAdditionalHeader::X5c(x5c) => {
                         Err(JwtError::UnsupportedKeyTypeInJwtHeader {
+                            key_name: "x5c".to_owned(),
                             key_type: x5c.clone(),
                         })
                     }

@@ -115,6 +115,9 @@ pub enum JwtError {
     /// For now this includes: 'x5c' and 'jwk'
     #[error("Unsupported key type `{key_type}` found in JWT header")]
     UnsupportedKeyTypeInJwtHeader {
+        /// Name of the key used
+        key_name: String,
+
         /// Specified key type that is not supported
         key_type: String,
     },
