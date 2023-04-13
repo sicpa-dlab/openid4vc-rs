@@ -183,7 +183,7 @@ impl ProofJwt {
     /// - When [`ProofJwtHeader::extract_key_and_alg`] errors
     pub fn extract_key_and_alg(
         &self,
-        did_document: &Option<ssi_dids::Document>,
+        did_document: Option<&ssi_dids::Document>,
     ) -> JwtResult<(Vec<u8>, ProofJwtAlgorithm)> {
         self.header.extract_key_and_alg(did_document)
     }
@@ -261,7 +261,7 @@ impl ProofJwtHeader {
     /// # Errors
     pub fn extract_key_and_alg(
         &self,
-        did_document: &Option<ssi_dids::Document>,
+        did_document: Option<&ssi_dids::Document>,
     ) -> JwtResult<(Vec<u8>, ProofJwtAlgorithm)> {
         match &self.additional_header {
             Some(additional_header) => {
@@ -423,7 +423,7 @@ pub struct ProofJwtBody {
 
     /// The value of this claim MUST be the Credential Issuer URL of the Credential Issuer.
     #[serde(rename = "aud")]
-    pub audiance_claim: String,
+    pub audience_claim: String,
 
     /// The value of this claim MUST be the time at which the proof was issued using the syntax
     /// defined in [RFC7519](https://www.rfc-editor.org/rfc/rfc7519.txt).
@@ -521,7 +521,7 @@ mod test_jwt {
         );
 
         assert_eq!(jwt.body.issuer_claim, Some("s6BhdRkqt3".to_owned()));
-        assert_eq!(jwt.body.audiance_claim, "https://server.example.com");
+        assert_eq!(jwt.body.audience_claim, "https://server.example.com");
         assert_eq!(jwt.body.nonce, "tZignsnFbp");
 
         // Here is a different timestamp used as in the test vector, as the data there is
@@ -565,7 +565,7 @@ mod test_jwt {
         let jwt = ProofJwt {
             body: ProofJwtBody {
                 issuer_claim: None,
-                audiance_claim: "aud".to_owned(),
+                audience_claim: "aud".to_owned(),
                 issued_at: now,
                 nonce: "nonce".to_owned(),
                 not_before: None,
@@ -594,7 +594,7 @@ mod test_jwt {
         let jwt = ProofJwt {
             body: ProofJwtBody {
                 issuer_claim: None,
-                audiance_claim: "aud".to_owned(),
+                audience_claim: "aud".to_owned(),
                 issued_at: now,
                 nonce: "nonce".to_owned(),
                 not_before: Some(future),
@@ -652,7 +652,7 @@ mod test_jwt {
         };
 
         let (key, alg) = jwt_header
-            .extract_key_and_alg(&Some(did_document))
+            .extract_key_and_alg(Some(&did_document))
             .expect("Unable to extract public key from did doc");
 
         assert_eq!(alg, ProofJwtAlgorithm::None);
@@ -692,7 +692,7 @@ mod test_jwt {
             )),
         };
 
-        let res = jwt_header.extract_key_and_alg(&Some(did_document));
+        let res = jwt_header.extract_key_and_alg(Some(&did_document));
 
         assert_eq!(
             res,
@@ -713,7 +713,7 @@ mod test_jwt {
             )),
         };
 
-        let res = jwt_header.extract_key_and_alg(&None);
+        let res = jwt_header.extract_key_and_alg(None);
 
         assert_eq!(res, Err(JwtError::NoDidDocumentProvidedForKidAsDid));
     }
@@ -737,7 +737,7 @@ mod test_jwt {
         };
 
         let (key, alg) = jwt_header
-            .extract_key_and_alg(&None)
+            .extract_key_and_alg(None)
             .expect("Unable to extract key and alg");
 
         assert_eq!(public_key_bytes, key);
@@ -758,7 +758,7 @@ mod test_jwt {
             additional_header: Some(ProofJwtAdditionalHeader::Jwk(jwk.to_owned())),
         };
 
-        let res = jwt_header.extract_key_and_alg(&None);
+        let res = jwt_header.extract_key_and_alg(None);
 
         assert_eq!(res, Err(JwtError::EdDSAHasNoXCoordinate));
     }
@@ -777,7 +777,7 @@ mod test_jwt {
             additional_header: Some(ProofJwtAdditionalHeader::Jwk(jwk.to_owned())),
         };
 
-        let res = jwt_header.extract_key_and_alg(&None);
+        let res = jwt_header.extract_key_and_alg(None);
         println!("{res:?}");
 
         assert!(matches!(res, Err(JwtError::UnsupportedAlgorithm { .. })));
@@ -798,7 +798,7 @@ mod test_jwt {
             additional_header: Some(ProofJwtAdditionalHeader::Jwk(jwk.to_owned())),
         };
 
-        let res = jwt_header.extract_key_and_alg(&None);
+        let res = jwt_header.extract_key_and_alg(None);
 
         assert!(matches!(res, Err(JwtError::UnsupportedAlgorithm { .. })));
     }
@@ -818,7 +818,7 @@ mod test_jwt {
             additional_header: Some(ProofJwtAdditionalHeader::Jwk(jwk.to_owned())),
         };
 
-        let res = jwt_header.extract_key_and_alg(&None);
+        let res = jwt_header.extract_key_and_alg(None);
 
         assert!(matches!(res, Err(JwtError::UnsupportedAlgorithm { .. })));
     }
@@ -837,7 +837,7 @@ mod test_jwt {
             additional_header: Some(ProofJwtAdditionalHeader::Jwk(jwk.to_owned())),
         };
 
-        let res = jwt_header.extract_key_and_alg(&None);
+        let res = jwt_header.extract_key_and_alg(None);
 
         assert!(matches!(res, Err(JwtError::UnsupportedAlgorithm { .. })));
     }

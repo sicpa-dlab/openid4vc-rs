@@ -1,8 +1,14 @@
+use std::str::FromStr;
+
 use self::error::CredentialIssuerError;
 use self::error::CredentialIssuerResult;
+use crate::jwt::ProofJwt;
 use crate::jwt::ProofJwtAlgorithm;
+use crate::types::authorization_server_metadata::AuthorizationServerMetadata;
 use crate::types::credential::CredentialFormatProfile;
 use crate::types::credential_issuer_metadata::CredentialIssuerMetadata;
+use crate::types::credential_request::CredentialRequest;
+use crate::types::credential_request::CredentialRequestProof;
 use crate::validate::Validatable;
 use crate::validate::ValidationError;
 use serde::Deserialize;
@@ -174,6 +180,28 @@ pub struct CredentialOffer {
     pub grants: CredentialOfferGrants,
 }
 
+impl Validatable for CredentialOffer {
+    fn validate(&self) -> Result<(), ValidationError> {
+        self.credentials.validate()?;
+        self.grants.validate()?;
+
+        Ok(())
+    }
+}
+
+/// TODO: implement if required
+impl Validatable for CredentialOrIds {
+    fn validate(&self) -> Result<(), ValidationError> {
+        Ok(())
+    }
+}
+
+impl Validatable for CredentialOfferGrants {
+    fn validate(&self) -> Result<(), ValidationError> {
+        Ok(())
+    }
+}
+
 impl CredentialOffer {
     /// Constructor for a credential offer
     #[must_use]
@@ -314,6 +342,48 @@ impl CredentialIssuer {
             format!("{credential_offer_url_prefix}credential_offer={credential_offer_url_encoded}");
 
         Ok((credential_offer, credential_offer_url))
+    }
+
+    /// Evaluate a credential request
+    ///
+    /// # Errors
+    ///
+    /// - When incorrect valdiation happens on the supplied input arguments
+    /// - When a JWT is inside the proof and is not valid
+    pub fn evaluate_credential_request(
+        issuer_metadata: &CredentialIssuerMetadata,
+        credential_request: &CredentialRequest,
+        credential_offer: Option<&CredentialOffer>,
+        authorization_server_metadata: Option<&AuthorizationServerMetadata>,
+        did_document: Option<&ssi_dids::Document>,
+    ) -> CredentialIssuerResult<CredentialIssuerEvaluateRequestResponse> {
+        issuer_metadata.validate()?;
+        credential_request.validate()?;
+        if let Some(credential_offer) = credential_offer {
+            credential_offer.validate()?;
+        };
+
+        if let Some(authorization_server_metadata) = authorization_server_metadata {
+            authorization_server_metadata.validate()?;
+        };
+
+        if let Some(CredentialRequestProof { jwt, .. }) = &credential_request.proof {
+            let jwt = ProofJwt::from_str(jwt)?;
+            jwt.validate()?;
+
+            let (public_key, algorithm) = jwt.extract_key_and_alg(did_document)?;
+            let signature = jwt.extract_signature()?;
+            let message = jwt.to_signable_message()?;
+
+            return Ok(CredentialIssuerEvaluateRequestResponse {
+                public_key: Some(public_key),
+                algorithm: Some(algorithm),
+                signature: Some(signature),
+                message: Some(message),
+            });
+        };
+
+        Ok(CredentialIssuerEvaluateRequestResponse::default())
     }
 }
 
