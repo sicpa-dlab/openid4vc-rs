@@ -25,13 +25,13 @@ impl AccessTokenService for GrpcAccessToken {
             error_uri,
         } = request.into_inner();
 
-        let error = AccessTokenErrorCode::try_from(error)?;
+        let error = AccessTokenErrorCode::try_from(error).map_err(GrpcError::ValidationError)?;
 
         let error_response =
             AccessToken::create_error_response(error, error_description, error_uri)
-                .map_err(GrpcError::AccessTokenError);
+                .map_err(GrpcError::AccessTokenError)?;
 
-        let error_response = serialize_to_slice(&error_response)?;
+        let error_response = serialize_to_slice(error_response)?;
         let response = CreateAccessTokenErrorResponseResponse { error_response };
 
         Ok(Response::new(response))
@@ -40,9 +40,8 @@ impl AccessTokenService for GrpcAccessToken {
 
 #[cfg(test)]
 mod credential_issuer_tests {
-    use openid4vci::access_token::AccessTokenErrorResponse;
-
     use super::*;
+    use openid4vci::access_token::AccessTokenErrorResponse;
 
     #[tokio::test]
     async fn should_create_error_response() {
@@ -66,12 +65,12 @@ mod credential_issuer_tests {
         };
 
         let response = response.into_inner();
+        let error_response = serialize_to_slice(&expected_error_response)
+            .expect("Unable to serialize error response");
 
         assert_eq!(
             response,
-            CreateAccessTokenErrorResponseResponse {
-                error_response: serialize_to_slice(&expected_error_response)?
-            }
+            CreateAccessTokenErrorResponseResponse { error_response }
         );
     }
 }

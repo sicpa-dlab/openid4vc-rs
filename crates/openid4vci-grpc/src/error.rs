@@ -1,6 +1,6 @@
 use openid4vci::{
     access_token::error::AccessTokenError, credential_issuer::error::CredentialIssuerError,
-    error_impl,
+    error_impl, validate::ValidationError,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -17,11 +17,9 @@ pub enum GrpcError {
     #[error(transparent)]
     AccessTokenError(#[from] AccessTokenError),
 
-    #[error("Unable to serialize the response")]
-    UnableToSerialize { message: String },
-
-    #[error("Unable to deserialize the input of `{item}`")]
-    UnableToDeserialize { item: String, bytes: Vec<u8> },
+    /// [`ValidationError`] wrapper
+    #[error(transparent)]
+    ValidationError(#[from] ValidationError),
 }
 
 error_impl!(GrpcError);
@@ -31,14 +29,7 @@ impl From<GrpcError> for Status {
         let info = match value {
             GrpcError::CredentialIssuerError(e) => e.information(),
             GrpcError::AccessTokenError(e) => e.information(),
-            // FIXME: How to get information? What should be returned here?
-            GrpcError::UnableToDeserialize { bytes, item } => {
-                return Self::new(
-                    Code::Internal,
-                    format!("Unable to deserialize the input of `{}`", item),
-                )
-            }
-            GrpcError::UnableToSerialize { message } => return Self::new(Code::Internal, message),
+            GrpcError::ValidationError(e) => e.information(),
         };
         let (code, message) = match serde_json::to_string(&info) {
             Ok(m) => (Code::InvalidArgument, m),

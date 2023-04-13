@@ -1,16 +1,13 @@
-use serde::{de::DeserializeOwned, Serialize};
-
 use crate::error::GrpcError;
+use openid4vci::validate::ValidationError;
+use serde::{de::DeserializeOwned, Serialize};
 
 /// Deserialize a slice into a structure and convert the error into a [`GrpcError`]
 pub fn deserialize_slice<T>(b: &[u8]) -> std::result::Result<T, GrpcError>
 where
     T: DeserializeOwned,
 {
-    serde_json::from_slice(b).map_err(|e| GrpcError::UnableToDeserialize {
-        bytes: b.to_vec(),
-        item: std::any::type_name::<T>().to_string(),
-    })
+    serde_json::from_slice(b).map_err(|e| GrpcError::ValidationError(ValidationError::from(e)))
 }
 
 /// Optionally, Deserialize a slice into a structure and convert the error into a [`GrpcError`]
@@ -23,13 +20,12 @@ where
     b.as_ref().map(|b| deserialize_slice(b)).transpose()
 }
 
+/// Serialize a struct that implements [`serde::Serialize`] to a byte array
 pub fn serialize_to_slice<T>(item: T) -> std::result::Result<Vec<u8>, GrpcError>
 where
     T: Serialize,
 {
-    serde_json::to_vec(&item).map_err(|e| GrpcError::UnableToSerialize {
-        message: e.to_string(),
-    })
+    serde_json::to_vec(&item).map_err(|e| GrpcError::ValidationError(ValidationError::from(e)))
 }
 
 #[cfg(test)]
@@ -83,6 +79,6 @@ mod utils_tests {
 
         let e = output.unwrap_err();
 
-        assert!(matches!(e, GrpcError::CredentialIssuerError(..)));
+        assert!(matches!(e, GrpcError::ValidationError(..)));
     }
 }

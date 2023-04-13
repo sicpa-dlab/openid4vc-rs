@@ -48,7 +48,7 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
         )
         .map_err(GrpcError::CredentialIssuerError)?;
 
-        let credential_offer = serialize_to_slice(&credential_offer)?;
+        let credential_offer = serialize_to_slice(credential_offer)?;
         let credential_offer_url = credential_offer_url.as_bytes().to_vec();
         let response = CreateOfferResponse {
             credential_offer,

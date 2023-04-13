@@ -13,7 +13,7 @@ pub mod error_response;
 /// Token structure which contains methods to create responses and evaluate input
 pub struct AccessToken;
 
-/// Struct mapping of the `token error response` as defined in section 6.3 of the [https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.3)
+/// Struct mapping of the `token error response` as defined in section 6.3 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.3)
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct AccessTokenErrorResponse {
     /// Error code indicating why the token request failed.
@@ -30,6 +30,10 @@ pub struct AccessTokenErrorResponse {
 
 impl AccessToken {
     /// Create an error response
+    ///
+    /// # Errors
+    ///
+    /// Unable to error, `Result` is used for consistency
     pub fn create_error_response(
         error: error_response::AccessTokenErrorCode,
         error_description: Option<String>,
