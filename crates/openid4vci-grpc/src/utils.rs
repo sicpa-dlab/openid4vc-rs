@@ -1,4 +1,4 @@
-use openid4vci::credential_issuer::error::CredentialIssuerError;
+use openid4vci::{credential_issuer::error::CredentialIssuerError, validate::ValidationError};
 use serde::de::DeserializeOwned;
 
 use crate::error::GrpcError;
@@ -9,9 +9,11 @@ where
     T: DeserializeOwned,
 {
     serde_json::from_slice(b).map_err(|e| {
-        GrpcError::CredentialIssuerError(CredentialIssuerError::SerializationError {
-            error_message: e.to_string(),
-        })
+        GrpcError::CredentialIssuerError(CredentialIssuerError::ValidationError(
+            ValidationError::Any {
+                validation_message: e.to_string(),
+            },
+        ))
     })
 }
 

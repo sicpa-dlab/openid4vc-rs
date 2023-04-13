@@ -30,3 +30,12 @@ pub mod credential_issuer;
 
 /// Module that contains some meta types that will be extracted later on
 pub mod types;
+
+/// Module containing a struct for json web tokens, specific for openid4vci
+pub mod jwt;
+
+/// Module that contains traits for validation on strutuctures
+pub mod validate;
+
+/// Module for base64, base64url and base58 encoding
+mod base;
