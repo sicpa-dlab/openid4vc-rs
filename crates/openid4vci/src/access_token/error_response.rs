@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::credential_issuer::error::CredentialIssuerError;
+use crate::validate::ValidationError;
 
 /// Enum containing error codes for an access token request. This is a direct implementation of section
 /// 6.3 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.3).
@@ -78,8 +78,7 @@ impl From<AccessTokenErrorCode> for &str {
 }
 
 impl TryFrom<String> for AccessTokenErrorCode {
-    // TODO: update into ValidationError
-    type Error = CredentialIssuerError;
+    type Error = ValidationError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.as_str() {
@@ -91,7 +90,9 @@ impl TryFrom<String> for AccessTokenErrorCode {
             "invalid_scope" => Ok(AccessTokenErrorCode::InvalidScope),
             "server_error" => Ok(AccessTokenErrorCode::ServerError),
             "temporarily_unavailable" => Ok(AccessTokenErrorCode::TemporarilyUnavailable),
-            _ => Err(CredentialIssuerError::AuthorizedFlowNotSupported),
+            _ => Err(ValidationError::Any {
+                validation_message: "Invalid access token error code".to_string(),
+            }),
         }
     }
 }

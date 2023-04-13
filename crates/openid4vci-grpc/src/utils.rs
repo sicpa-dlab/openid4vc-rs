@@ -1,5 +1,4 @@
-use openid4vci::{credential_issuer::error::CredentialIssuerError, validate::ValidationError};
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::error::GrpcError;
 
@@ -8,12 +7,9 @@ pub fn deserialize_slice<T>(b: &[u8]) -> std::result::Result<T, GrpcError>
 where
     T: DeserializeOwned,
 {
-    serde_json::from_slice(b).map_err(|e| {
-        GrpcError::CredentialIssuerError(CredentialIssuerError::ValidationError(
-            ValidationError::Any {
-                validation_message: e.to_string(),
-            },
-        ))
+    serde_json::from_slice(b).map_err(|e| GrpcError::UnableToDeserialize {
+        bytes: b.to_vec(),
+        item: std::any::type_name::<T>().to_string(),
     })
 }
 
@@ -25,6 +21,15 @@ where
     T: DeserializeOwned,
 {
     b.as_ref().map(|b| deserialize_slice(b)).transpose()
+}
+
+pub fn serialize_to_slice<T>(item: T) -> std::result::Result<Vec<u8>, GrpcError>
+where
+    T: Serialize,
+{
+    serde_json::to_vec(&item).map_err(|e| GrpcError::UnableToSerialize {
+        message: e.to_string(),
+    })
 }
 
 #[cfg(test)]

@@ -1,11 +1,13 @@
-use crate::error::{GrpcError, Result};
+use crate::error::GrpcError;
+use crate::error::Result;
 use crate::grpc_openid4vci::access_token_service_server::AccessTokenService;
+use crate::utils::serialize_to_slice;
 use crate::CreateAccessTokenErrorResponseRequest;
 use crate::CreateAccessTokenErrorResponseResponse;
 use openid4vci::access_token::{error_response::AccessTokenErrorCode, AccessToken};
 use tonic::{Request, Response};
 
-/// Issuer structure to implement `gRPC` traits on.
+/// Access token structure to implement `gRPC` traits on.
 ///
 /// This wraps mainly around [`AccessToken`]
 #[derive(Debug, Default)]
@@ -23,14 +25,13 @@ impl AccessTokenService for GrpcAccessToken {
             error_uri,
         } = request.into_inner();
 
-        // FIXME: do not use `unwrap`.
-        let error = AccessTokenErrorCode::try_from(error).unwrap();
+        let error = AccessTokenErrorCode::try_from(error)?;
 
         let error_response =
             AccessToken::create_error_response(error, error_description, error_uri)
-                .map_err(GrpcError::AccessTokenError)?;
+                .map_err(GrpcError::AccessTokenError);
 
-        let error_response = serde_json::to_vec(&error_response).unwrap();
+        let error_response = serialize_to_slice(&error_response)?;
         let response = CreateAccessTokenErrorResponseResponse { error_response };
 
         Ok(Response::new(response))
@@ -69,7 +70,7 @@ mod credential_issuer_tests {
         assert_eq!(
             response,
             CreateAccessTokenErrorResponseResponse {
-                error_response: serde_json::to_vec(&expected_error_response).unwrap()
+                error_response: serialize_to_slice(&expected_error_response)?
             }
         );
     }

@@ -1,6 +1,6 @@
 use crate::error::{GrpcError, Result};
 use crate::grpc_openid4vci::credential_issuer_service_server::CredentialIssuerService;
-use crate::utils::{deserialize_optional_slice, deserialize_slice};
+use crate::utils::{deserialize_optional_slice, deserialize_slice, serialize_to_slice};
 use crate::CreateOfferRequest;
 use crate::CreateOfferResponse;
 use openid4vci::credential_issuer::{
@@ -48,7 +48,7 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
         )
         .map_err(GrpcError::CredentialIssuerError)?;
 
-        let credential_offer = serde_json::to_vec(&credential_offer).unwrap();
+        let credential_offer = serialize_to_slice(&credential_offer)?;
         let credential_offer_url = credential_offer_url.as_bytes().to_vec();
         let response = CreateOfferResponse {
             credential_offer,
