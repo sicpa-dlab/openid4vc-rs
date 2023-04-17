@@ -27,6 +27,26 @@ specification as those have to be expose over HTTP. This package can be used
 in a micro-service architecture where the communication between the different
 services is done with gRPC.
 
+#### Running an example with Docker
+
+A small example has been created for the [client](./crates/openid4vci-grpc/src/client.rs) and [server](./crates/openid4vci-grpc/src/server.rs). For the server there is a Dockerfile created. This can be built with the following command (from the root of the project):
+
+```sh
+docker build -f docker/server.Dockerfile -t server .
+```
+
+To run the image:
+
+```sh
+docker run -p50051:50051 server
+```
+
+And lastly, to send a message using the [client](./crates/openid4vci-grpc/src/client):
+
+```sh
+cargo run --bin client
+```
+
 ## License
 
 The license used for this project is Apache 2.0 and can be found in the

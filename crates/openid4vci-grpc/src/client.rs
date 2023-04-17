@@ -7,8 +7,8 @@ use openid4vci_grpc::{CreateAccessTokenErrorResponseRequest, CreateOfferRequest}
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut credential_issuer_client =
-        CredentialIssuerServiceClient::connect("http://[::1]:50051").await?;
-    let mut access_token_client = AccessTokenServiceClient::connect("http://[::1]:50051").await?;
+        CredentialIssuerServiceClient::connect("http://0.0.0.0:50051").await?;
+    let mut access_token_client = AccessTokenServiceClient::connect("http://0.0.0.0:50051").await?;
 
     let cfp = serde_json::json!({
         "format": "jwt_vc_json",
