@@ -2,7 +2,10 @@
 
 use openid4vci_grpc::access_token_client::AccessTokenServiceClient;
 use openid4vci_grpc::credential_issuer_client::CredentialIssuerServiceClient;
-use openid4vci_grpc::{CreateAccessTokenErrorResponseRequest, CreateOfferRequest};
+use openid4vci_grpc::{
+    CreateAccessTokenErrorResponseRequest, CreateAccessTokenSuccessResponseRequest,
+    CreateOfferRequest,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -73,14 +76,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::from_slice(&response.credential_offer).unwrap();
     let credential_offer_url = String::from_utf8_lossy(&response.credential_offer_url);
 
+    println!("{credential_offer:#?}");
+    println!("{credential_offer_url:#?}");
+
     let request = tonic::Request::new(CreateAccessTokenErrorResponseRequest {
         error: "invalid_request".to_string(),
         error_description: Some("An error".to_string()),
         error_uri: Some("https://uri.com".to_string()),
     });
-
-    println!("{credential_offer:#?}");
-    println!("{credential_offer_url:#?}");
 
     let response = access_token_client
         .create_error_response(request)
@@ -91,6 +94,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::from_slice(&response.error_response).unwrap();
 
     println!("{error_response:#?}");
+
+    let request = tonic::Request::new(CreateAccessTokenSuccessResponseRequest {
+        access_token: "access_token".to_string(),
+        token_type: "Bearer".to_string(),
+        expires_in: Some(3600),
+        scope: Some("Hello World".to_string()),
+        c_nonce: Some("c_nonce".to_string()),
+        c_nonce_expires_in: Some(1800),
+
+        authorization_pending: Some(false),
+        interval: Some(5),
+    });
+
+    let response = access_token_client
+        .create_success_response(request)
+        .await?
+        .into_inner();
+
+    let success_response: serde_json::Value =
+        serde_json::from_slice(&response.success_response).unwrap();
+
+    println!("{success_response:#?}");
 
     Ok(())
 }
