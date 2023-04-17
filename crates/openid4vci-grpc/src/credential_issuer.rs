@@ -1,12 +1,16 @@
 use crate::error::{GrpcError, Result};
 use crate::grpc_openid4vci::credential_issuer_service_server::CredentialIssuerService;
+use crate::grpc_openid4vci::{
+    PreEvaluateCredentialRequestRequest, PreEvaluateCredentialRequestResponse,
+};
 use crate::utils::{deserialize_optional_slice, deserialize_slice, serialize_to_slice};
-use crate::CreateOfferRequest;
-use crate::CreateOfferResponse;
+use crate::CreateCredentialOfferRequest;
+use crate::CreateCredentialOfferResponse;
 use openid4vci::credential_issuer::{
     AuthorizedCodeFlow, CredentialIssuer, CredentialOrIds, PreAuthorizedCodeFlow,
 };
 use openid4vci::types::credential_issuer_metadata::CredentialIssuerMetadata;
+use openid4vci::types::credential_request::CredentialRequest;
 use tonic::{Request, Response};
 
 /// Issuer structure to implement `gRPC` traits on.
@@ -17,11 +21,11 @@ pub struct GrpcCredentialIssuer;
 
 #[tonic::async_trait]
 impl CredentialIssuerService for GrpcCredentialIssuer {
-    async fn create_offer(
+    async fn create_credential_offer(
         &self,
-        request: Request<CreateOfferRequest>,
-    ) -> Result<Response<CreateOfferResponse>> {
-        let CreateOfferRequest {
+        request: Request<CreateCredentialOfferRequest>,
+    ) -> Result<Response<CreateCredentialOfferResponse>> {
+        let CreateCredentialOfferRequest {
             issuer_metadata,
             authorized_code_flow,
             pre_authorized_code_flow,
@@ -50,10 +54,26 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
 
         let credential_offer = serialize_to_slice(credential_offer)?;
         let credential_offer_url = credential_offer_url.as_bytes().to_vec();
-        let response = CreateOfferResponse {
+        let response = CreateCredentialOfferResponse {
             credential_offer,
             credential_offer_url,
         };
+
+        Ok(Response::new(response))
+    }
+
+    async fn pre_evaluate_credential_request(
+        &self,
+        request: Request<PreEvaluateCredentialRequestRequest>,
+    ) -> Result<Response<PreEvaluateCredentialRequestResponse>> {
+        let PreEvaluateCredentialRequestRequest { credential_request } = request.into_inner();
+
+        let credential_request = deserialize_slice::<CredentialRequest>(&credential_request)?;
+
+        let response = CredentialIssuer::pre_evaluate_credential_request(&credential_request)
+            .map_err(GrpcError::CredentialIssuerError)?;
+
+        let response = PreEvaluateCredentialRequestResponse { did: response.did };
 
         Ok(Response::new(response))
     }
@@ -115,7 +135,7 @@ mod credential_issuer_tests {
 
         let credentials = serde_json::json!([&cfp]).to_string().as_bytes().to_vec();
 
-        let message = CreateOfferRequest {
+        let message = CreateCredentialOfferRequest {
             issuer_metadata,
             credentials,
             authorized_code_flow: None,
@@ -124,7 +144,7 @@ mod credential_issuer_tests {
         };
 
         issuer
-            .create_offer(Request::new(message))
+            .create_credential_offer(Request::new(message))
             .await
             .expect("Unable to create offer");
     }
@@ -188,7 +208,7 @@ mod credential_issuer_tests {
         .as_bytes()
         .to_vec();
 
-        let message = CreateOfferRequest {
+        let message = CreateCredentialOfferRequest {
             issuer_metadata,
             credentials,
             authorized_code_flow: Some(authorized_code_flow),
@@ -199,7 +219,7 @@ mod credential_issuer_tests {
         // A bit of a hacky test as we nest some of the errors and extracting the serialized
         // message is not the intended behaviour
         let message = issuer
-            .create_offer(Request::new(message))
+            .create_credential_offer(Request::new(message))
             .await
             .unwrap_err();
 

@@ -38,7 +38,10 @@ mod utils;
 
 pub use grpc_openid4vci::credential_issuer_service_client as credential_issuer_client;
 pub use grpc_openid4vci::credential_issuer_service_server as credential_issuer_server;
-pub use grpc_openid4vci::{CreateOfferRequest, CreateOfferResponse};
+pub use grpc_openid4vci::{
+    CreateCredentialOfferRequest, CreateCredentialOfferResponse,
+    PreEvaluateCredentialRequestRequest, PreEvaluateCredentialRequestResponse,
+};
 
 pub use grpc_openid4vci::access_token_service_client as access_token_client;
 pub use grpc_openid4vci::access_token_service_server as access_token_server;

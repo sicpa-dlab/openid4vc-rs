@@ -259,6 +259,15 @@ pub struct CredentialOfferGrants {
 /// Structure that contains the functionality for the credential issuer
 pub struct CredentialIssuer;
 
+/// Return type of the [`CredentialIssuer::pre_evaluate_credential_request`]
+#[derive(Debug, Serialize, PartialEq, Eq, Default)]
+pub struct PreEvaluateCredentialRequestResponse {
+    /// The DID that needs resolution before [`CredentialIssuer::evaluate_credential_request`] is
+    /// called
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub did: Option<String>,
+}
+
 /// Return type of the [`CredentialIssuer::evaluate_credential_request`]
 #[derive(Debug, Serialize, PartialEq, Eq, Default)]
 pub struct CredentialIssuerEvaluateRequestResponse {
@@ -344,6 +353,30 @@ impl CredentialIssuer {
         Ok((credential_offer, credential_offer_url))
     }
 
+    /// Pre evaluate the credential request
+    ///
+    /// This will check whether the [`CredentialRequest`] contains a DID as kid inside the JWT and
+    /// return the value that needs resolution
+    ///
+    /// # Errors
+    ///
+    /// - When the credential request is invalid
+    pub fn pre_evaluate_credential_request(
+        credential_request: &CredentialRequest,
+    ) -> CredentialIssuerResult<PreEvaluateCredentialRequestResponse> {
+        credential_request.validate()?;
+
+        let did = if let Some(CredentialRequestProof { jwt, .. }) = &credential_request.proof {
+            let jwt = ProofJwt::from_str(jwt)?;
+            jwt.validate()?;
+            jwt.extract_kid()?
+        } else {
+            None
+        };
+
+        Ok(PreEvaluateCredentialRequestResponse { did })
+    }
+
     /// Evaluate a credential request
     ///
     /// # Errors
@@ -359,6 +392,7 @@ impl CredentialIssuer {
     ) -> CredentialIssuerResult<CredentialIssuerEvaluateRequestResponse> {
         issuer_metadata.validate()?;
         credential_request.validate()?;
+
         if let Some(credential_offer) = credential_offer {
             credential_offer.validate()?;
         };
@@ -446,5 +480,63 @@ mod test_create_credential_offer {
             id: "id_one".to_owned(),
         });
         assert_eq!(result, expect);
+    }
+}
+
+#[cfg(test)]
+mod test_pre_evaluate_credential_request {
+    use crate::jwt::error::JwtError;
+
+    use super::*;
+
+    #[test]
+    fn happy_flow() {
+        let credential_request = CredentialRequest {
+        proof: Some(CredentialRequestProof {
+            proof_type: "jwt".to_owned(),
+            jwt: "eyJraWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxYzI3NmUxMmVjMjEva2V5cy8xIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJvcGVuaWQ0dmNpLXByb29mK2p3dCJ9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
+        }),
+        format: CredentialFormatProfile::LdpVc {
+            context: vec![],
+            types: vec![],
+            credential_subject: None,
+            order: None,
+        },
+    };
+
+        let response = CredentialIssuer::pre_evaluate_credential_request(&credential_request)
+            .expect("Unable to to pre evaluate the credential request");
+
+        assert_eq!(
+            response.did,
+            Some("did:example:ebfeb1f712ebc6f1c276e12ec21/keys/1".to_owned())
+        );
+    }
+
+    #[test]
+    fn should_not_work_with_jwk() {
+        let credential_request: CredentialRequest = CredentialRequest {
+        proof: Some(CredentialRequestProof {
+            proof_type: "jwt".to_owned(),
+            jwt: "eyJqd2siOiJ1bmtub3duIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJvcGVuaWQ0dmNpLXByb29mK2p3dCJ9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
+        }),
+        format: CredentialFormatProfile::LdpVc {
+            context: vec![],
+            types: vec![],
+            credential_subject: None,
+            order: None,
+        },
+    };
+
+        let response =
+            CredentialIssuer::pre_evaluate_credential_request(&credential_request).unwrap_err();
+
+        assert_eq!(
+            response,
+            CredentialIssuerError::JwtError(JwtError::UnsupportedKeyTypeInJwtHeader {
+                key_type: "unknown".to_owned(),
+                key_name: "jwk".to_owned()
+            })
+        );
     }
 }

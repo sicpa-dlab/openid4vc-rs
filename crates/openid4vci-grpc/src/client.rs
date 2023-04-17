@@ -1,17 +1,18 @@
 //! Example client package
 
+use openid4vci::types::credential_request::{CredentialRequest, CredentialRequestProof};
 use openid4vci_grpc::access_token_client::AccessTokenServiceClient;
 use openid4vci_grpc::credential_issuer_client::CredentialIssuerServiceClient;
 use openid4vci_grpc::{
     CreateAccessTokenErrorResponseRequest, CreateAccessTokenSuccessResponseRequest,
-    CreateOfferRequest,
+    CreateCredentialOfferRequest, PreEvaluateCredentialRequestRequest,
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut credential_issuer_client =
-        CredentialIssuerServiceClient::connect("http://[::1]:50051").await?;
-    let mut access_token_client = AccessTokenServiceClient::connect("http://[::1]:50051").await?;
+        CredentialIssuerServiceClient::connect("http://0.0.0.0:50051").await?;
+    let mut access_token_client = AccessTokenServiceClient::connect("http://0.0.0.0:50051").await?;
 
     let cfp = serde_json::json!({
         "format": "jwt_vc_json",
@@ -61,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let credentials = serde_json::json!([&cfp]).to_string().as_bytes().to_vec();
 
-    let request = tonic::Request::new(CreateOfferRequest {
+    let request = tonic::Request::new(CreateCredentialOfferRequest {
         issuer_metadata,
         credentials,
         credential_offer_endpoint: None,
@@ -69,7 +70,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pre_authorized_code_flow: None,
     });
 
-    let response = credential_issuer_client.create_offer(request).await?;
+    let response = credential_issuer_client
+        .create_credential_offer(request)
+        .await?;
     let response = response.into_inner();
 
     let credential_offer: serde_json::Value =
@@ -94,6 +97,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::from_slice(&response.error_response).unwrap();
 
     println!("{error_response:#?}");
+
+    let credential_request = CredentialRequest {
+        proof: Some(CredentialRequestProof {
+            proof_type: "jwt".to_owned(),
+            jwt: "eyJraWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxYzI3NmUxMmVjMjEva2V5cy8xIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJvcGVuaWQ0dmNpLXByb29mK2p3dCJ9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
+        }),
+        format: openid4vci::types::credential::CredentialFormatProfile::LdpVc {
+            context: vec![],
+            types: vec![],
+            credential_subject: None,
+            order: None,
+        },
+    };
+    let credential_request = serde_json::to_vec(&credential_request)?;
+
+    let request = tonic::Request::new(PreEvaluateCredentialRequestRequest { credential_request });
+    let response = credential_issuer_client
+        .pre_evaluate_credential_request(request)
+        .await?
+        .into_inner();
+
+    println!("{response:#?}");
 
     let request = tonic::Request::new(CreateAccessTokenSuccessResponseRequest {
         access_token: "access_token".to_string(),
