@@ -1,11 +1,15 @@
 //! Example client package
 
 use openid4vci::types::credential_request::{CredentialRequest, CredentialRequestProof};
+use openid4vci::validate::ValidationError;
+use openid4vci::Document;
 use openid4vci_grpc::access_token_client::AccessTokenServiceClient;
 use openid4vci_grpc::credential_issuer_client::CredentialIssuerServiceClient;
+use openid4vci_grpc::error::GrpcError;
 use openid4vci_grpc::{
     CreateAccessTokenErrorResponseRequest, CreateAccessTokenSuccessResponseRequest,
-    CreateCredentialOfferRequest, PreEvaluateCredentialRequestRequest,
+    CreateCredentialOfferRequest, EvaluateCredentialRequestRequest,
+    PreEvaluateCredentialRequestRequest,
 };
 
 #[tokio::main]
@@ -63,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let credentials = serde_json::json!([&cfp]).to_string().as_bytes().to_vec();
 
     let request = tonic::Request::new(CreateCredentialOfferRequest {
-        issuer_metadata,
+        issuer_metadata: issuer_metadata.clone(),
         credentials,
         credential_offer_endpoint: None,
         authorized_code_flow: None,
@@ -101,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let credential_request = CredentialRequest {
         proof: Some(CredentialRequestProof {
             proof_type: "jwt".to_owned(),
-            jwt: "eyJraWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxYzI3NmUxMmVjMjEva2V5cy8xIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJvcGVuaWQ0dmNpLXByb29mK2p3dCJ9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
+            jwt: "ewogICJraWQiOiAiZGlkOmtleTp6RG5hZXJEYVRGNUJYRWF2Q3JmUlpFazMxNmRwYkxzZlBEWjNXSjVoUlRQRlUyMTY5I3pEbmFlckRhVEY1QlhFYXZDcmZSWkVrMzE2ZHBiTHNmUERaM1dKNWhSVFBGVTIxNjkiLAogICJhbGciOiAiRWREU0EiLAogICJ0eXAiOiAib3BlbmlkNHZjaS1wcm9vZitqd3QiCn0.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
         }),
         format: openid4vci::types::credential::CredentialFormatProfile::LdpVc {
             context: vec![],
@@ -141,6 +145,74 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::from_slice(&response.success_response).unwrap();
 
     println!("{success_response:#?}");
+
+    let credential_request = CredentialRequest {
+        proof: Some(CredentialRequestProof {
+            proof_type: "jwt".to_owned(),
+            jwt: "ewogICJraWQiOiAiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjejZNa3BUSFI4Vk5zQnhZQUFXSHV0MkdlYWRkOWpTd3VCVjh4Um9BbndXc2R2a3RIIiwKICAiYWxnIjogIkVkRFNBIiwKICAidHlwIjogIm9wZW5pZDR2Y2ktcHJvb2Yrand0Igp9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
+        }),
+        format: openid4vci::types::credential::CredentialFormatProfile::LdpVc {
+            context: vec![],
+            types: vec![],
+            credential_subject: None,
+            order: None,
+        },
+    };
+    let credential_request = serde_json::to_vec(&credential_request)?;
+
+    let did_document = serde_json::json!({
+      "@context": [
+        "https://www.w3.org/ns/did/v1",
+        {
+          "Ed25519VerificationKey2018": "https://w3id.org/security#Ed25519VerificationKey2018",
+          "publicKeyJwk": {
+            "@id": "https://w3id.org/security#publicKeyJwk",
+            "@type": "@json"
+          }
+        }
+      ],
+      "id": "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH",
+      "verificationMethod": [
+        {
+          "id": "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH",
+          "type": "Ed25519VerificationKey2018",
+          "controller": "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH",
+          "publicKeyJwk": {
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": "lJZrfAjkBXdfjebMHEUI9usidAPhAlssitLXR3OYxbI"
+          }
+        }
+      ],
+      "authentication": [
+        "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+      ],
+      "assertionMethod": [
+        "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+      ]
+    }
+
+        );
+
+    let did_document: Document = serde_json::from_value(did_document)
+        .map_err(|e| GrpcError::ValidationError(ValidationError::from(e)))?;
+
+    let did_document = serde_json::to_vec(&did_document)
+        .map_err(|e| GrpcError::ValidationError(ValidationError::from(e)))?;
+
+    let request = tonic::Request::new(EvaluateCredentialRequestRequest {
+        credential_request,
+        did_document: Some(did_document),
+        issuer_metadata,
+        credential_offer: Some(serde_json::to_vec(&credential_offer).unwrap()),
+        authorization_server_metadata: None,
+    });
+    let response = credential_issuer_client
+        .evaluate_credential_request(request)
+        .await?
+        .into_inner();
+
+    println!("{response:#?}");
 
     Ok(())
 }

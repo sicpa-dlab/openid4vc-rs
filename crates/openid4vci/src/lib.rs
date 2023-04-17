@@ -18,6 +18,8 @@ pub mod macros;
 #[macro_use]
 extern crate strum;
 
+pub use ssi_dids::Document;
+
 /// Error module that contains a serializable, complex error object that can be send of over FFI,
 /// HTTP, `gRPC`, etc.
 pub mod error;

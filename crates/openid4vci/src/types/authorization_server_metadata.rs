@@ -1,9 +1,9 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::validate::Validatable;
 
 /// Authorization server metadata as defined in [RFC8414](https://www.rfc-editor.org/rfc/rfc8414.txt)
-#[derive(Debug, PartialEq, Eq, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthorizationServerMetadata {}
 
 impl Validatable for AuthorizationServerMetadata {

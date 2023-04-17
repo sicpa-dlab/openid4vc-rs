@@ -271,18 +271,25 @@ pub struct PreEvaluateCredentialRequestResponse {
 /// Return type of the [`CredentialIssuer::evaluate_credential_request`]
 #[derive(Debug, Serialize, PartialEq, Eq, Default)]
 pub struct CredentialIssuerEvaluateRequestResponse {
+    /// Proof of possession, wrapping [`ProofOfPossession`]
+    pub proof_of_possession: Option<ProofOfPossession>,
+}
+
+/// Structure that contains the items to check a proof of possession
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct ProofOfPossession {
     /// Algorithm used for signing
-    algorithm: Option<ProofJwtAlgorithm>,
+    pub algorithm: ProofJwtAlgorithm,
 
     /// Public key bytes that can be used for verification
-    public_key: Option<Vec<u8>>,
+    pub public_key: Vec<u8>,
 
     /// Message that needs to be verified by the consumer
-    message: Option<Vec<u8>>,
+    pub message: Vec<u8>,
 
     /// Signature over the message, using the public key, that can be used by the consumer to
     /// verify it
-    signature: Option<Vec<u8>>,
+    pub signature: Vec<u8>,
 }
 
 /// Additional struct for metadata that will be used to verify
@@ -410,10 +417,12 @@ impl CredentialIssuer {
             let message = jwt.to_signable_message()?;
 
             return Ok(CredentialIssuerEvaluateRequestResponse {
-                public_key: Some(public_key),
-                algorithm: Some(algorithm),
-                signature: Some(signature),
-                message: Some(message),
+                proof_of_possession: Some(ProofOfPossession {
+                    algorithm,
+                    public_key,
+                    message,
+                    signature,
+                }),
             });
         };
 
@@ -518,7 +527,7 @@ mod test_pre_evaluate_credential_request {
         let credential_request: CredentialRequest = CredentialRequest {
         proof: Some(CredentialRequestProof {
             proof_type: "jwt".to_owned(),
-            jwt: "eyJqd2siOiJ1bmtub3duIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJvcGVuaWQ0dmNpLXByb29mK2p3dCJ9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
+            jwt: "eyJqd2siOiJ1bmtub3duIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJvcGVuaWQ0dmNpLXByb29mK2p3dCJ9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned()
         }),
         format: CredentialFormatProfile::LdpVc {
             context: vec![],
