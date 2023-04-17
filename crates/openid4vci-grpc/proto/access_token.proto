@@ -4,6 +4,7 @@ package openid4vci;
 
 service AccessTokenService {
     rpc CreateErrorResponse (CreateAccessTokenErrorResponseRequest) returns (CreateAccessTokenErrorResponseResponse);
+    rpc CreateSuccessResponse (CreateAccessTokenSuccessResponseRequest) returns (CreateAccessTokenSuccessResponseResponse);
 }
 
 message CreateAccessTokenErrorResponseRequest {
@@ -14,4 +15,20 @@ message CreateAccessTokenErrorResponseRequest {
 
 message CreateAccessTokenErrorResponseResponse {
   bytes error_response = 1;
+}
+
+
+message CreateAccessTokenSuccessResponseRequest {
+  string access_token = 1;
+  string token_type = 2;
+  optional uint64 expires_in = 3;
+  optional string scope = 4;
+  optional string c_nonce = 5;
+  optional uint64 c_nonce_expires_in = 6;
+  optional bool authorization_pending = 7;
+  optional uint64 interval = 8;
+}
+
+message CreateAccessTokenSuccessResponseResponse {
+  bytes success_response = 1;
 }

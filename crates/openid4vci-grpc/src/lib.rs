@@ -47,4 +47,5 @@ pub use grpc_openid4vci::access_token_service_client as access_token_client;
 pub use grpc_openid4vci::access_token_service_server as access_token_server;
 pub use grpc_openid4vci::{
     CreateAccessTokenErrorResponseRequest, CreateAccessTokenErrorResponseResponse,
+    CreateAccessTokenSuccessResponseRequest, CreateAccessTokenSuccessResponseResponse,
 };

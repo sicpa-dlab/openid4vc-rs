@@ -9,3 +9,6 @@ pub mod credential_request;
 
 /// Module containing a struct for the authorization server metadata
 pub mod authorization_server_metadata;
+
+/// Module containing a structure for the token response token type
+pub mod token_type;

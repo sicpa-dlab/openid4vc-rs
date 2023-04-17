@@ -514,8 +514,8 @@ mod test_pre_evaluate_credential_request {
     }
 
     #[test]
-    fn should_not_work_with_x5c() {
-        let credential_request = CredentialRequest {
+    fn should_not_work_with_jwk() {
+        let credential_request: CredentialRequest = CredentialRequest {
         proof: Some(CredentialRequestProof {
             proof_type: "jwt".to_owned(),
             jwt: "eyJqd2siOiJ1bmtub3duIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJvcGVuaWQ0dmNpLXByb29mK2p3dCJ9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
@@ -534,7 +534,8 @@ mod test_pre_evaluate_credential_request {
         assert_eq!(
             response,
             CredentialIssuerError::JwtError(JwtError::UnsupportedKeyTypeInJwtHeader {
-                key_type: "unknown".to_owned()
+                key_type: "unknown".to_owned(),
+                key_name: "jwk".to_owned()
             })
         );
     }
