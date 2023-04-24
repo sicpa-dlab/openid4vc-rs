@@ -28,6 +28,18 @@ where
     serde_json::to_vec(&item).map_err(|e| GrpcError::ValidationError(ValidationError::from(e)))
 }
 
+/// Optionally, Serialize a struct that implements [`serde::Serialize`] to a byte array
+pub fn serialize_to_optional_slice<T>(
+    item: Option<T>,
+) -> std::result::Result<Option<Vec<u8>>, GrpcError>
+where
+    T: Serialize,
+{
+    item.map(|i| serde_json::to_vec(&i))
+        .transpose()
+        .map_err(|e| GrpcError::ValidationError(ValidationError::from(e)))
+}
+
 #[cfg(test)]
 mod utils_tests {
     use serde::{Deserialize, Serialize};
@@ -61,6 +73,26 @@ mod utils_tests {
         let optional_input = None;
         let output = deserialize_optional_slice::<serde_json::Value>(&optional_input)
             .expect("Unable to deserialize value");
+
+        assert_eq!(output, None);
+    }
+
+    #[test]
+    fn should_optionally_serialize() {
+        let input = serde_json::json!({"a": "b"});
+        let expected = Some(input.to_string().as_bytes().to_vec());
+
+        let output =
+            serialize_to_optional_slice(Some(input)).expect("Unable to deserialize value");
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn should_optionally_serialize_without_value() {
+        let input: Option<()> = None;
+        let output =
+            serialize_to_optional_slice(input).expect("Unable to deserialize value");
 
         assert_eq!(output, None);
     }
