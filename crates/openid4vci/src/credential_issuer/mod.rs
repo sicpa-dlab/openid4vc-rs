@@ -2,10 +2,13 @@ use std::str::FromStr;
 
 use self::error::CredentialIssuerError;
 use self::error::CredentialIssuerResult;
+use self::error_code::CredentialIssuerErrorCode;
+use crate::error_response::ErrorResponse;
 use crate::jwt::ProofJwt;
 use crate::jwt::ProofJwtAlgorithm;
 use crate::types::authorization_server_metadata::AuthorizationServerMetadata;
 use crate::types::credential::CredentialFormatProfile;
+use crate::types::credential::CredentialFormatProfileOrEncoded;
 use crate::types::credential_issuer_metadata::CredentialIssuerMetadata;
 use crate::types::credential_request::CredentialRequest;
 use crate::types::credential_request::CredentialRequestProof;
@@ -16,6 +19,14 @@ use serde::Serialize;
 
 /// Error module for the credential issuance module
 pub mod error;
+
+/// Module for credential error response
+pub mod error_code;
+
+/// Struct mapping for a `credential error response` as defined in section 7.3.1 of the
+/// [openid4vci
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-7.3.1)
+pub type CredentialIssuerErrorResponse = ErrorResponse<CredentialIssuerErrorCode>;
 
 /// Enum that defines a type which may contain a [`CredentialFormatProfile`] type or a string
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -233,6 +244,16 @@ impl CredentialOffer {
     }
 }
 
+/// Enum value as a union for the input to either contain a [`CredentialFormatProfile`] or
+/// `acceptance_token`
+pub enum CredentialOrAcceptanceToken {
+    /// Credential format profile
+    Credential(CredentialFormatProfile),
+
+    /// Acceptance token
+    AcceptanceToken(String),
+}
+
 /// A JSON object indicating to the Wallet the Grant Types the Credential Issuer's AS is prepared
 /// to process for this credential offer. Every grant is represented by a key and an object. The
 /// key value is the Grant Type identifier, the object MAY contain parameters either determining
@@ -299,6 +320,49 @@ pub struct ProofOfPossession {
 pub struct CredentialIssuerEvaluateRequestOptions {
     /// Id of the client that will be checked whether it is equal to the `iss` field inside the JWK
     client_id: Option<String>,
+}
+
+/// Response structure for a `credential_success`.
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct CredentialSuccessResponse {
+    /// JSON string denoting the format of the issued Credential.
+    format: String,
+
+    /// Contains issued Credential. MUST be present when `acceptance_token` is not returned. MAY be a
+    /// JSON string or a JSON object, depending on the Credential format. See Appendix E of the
+    /// [openid4vci
+    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#format_profiles)
+    /// for the Credential format specific encoding requirements.
+    credential: Option<CredentialFormatProfileOrEncoded>,
+
+    /// A JSON string containing a security token subsequently used to obtain a Credential. MUST be
+    /// present when credential is not returned.
+    acceptance_token: Option<String>,
+
+    /// JSON string containing a nonce to be used to create a proof of possession of key material
+    /// when requesting a Credential (see Section 7.2 of the [openid4vci
+    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential_request)).
+    /// When received, the Wallet MUST use this nonce value for its subsequent credential requests
+    /// until the Credential Issuer provides a fresh nonce.
+    c_nonce: Option<String>,
+
+    /// JSON integer denoting the lifetime in seconds of the c_nonce.
+    c_nonce_expires_in: Option<u64>,
+}
+
+/// Struct value as a union for the input to either contain a `c_nonce` and a `c_nonce_expires_in` as
+/// a [`DateTime`]. These values always have to be supplied together.
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Hash)]
+pub struct CNonce {
+    /// JSON string containing a nonce to be used to create a proof of possession of key material
+    /// when requesting a Credential (see Section 7.2 of the [openidvci
+    /// specifciation](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-7.2)).
+    /// When received, the Wallet MUST use this nonce value for its subsequent credential requests
+    /// until the Credential Issuer provides a fresh nonce.
+    pub c_nonce: String,
+
+    /// JSON integer denoting the lifetime in seconds of the `c_nonce`.
+    pub c_nonce_expires_in: Option<u64>,
 }
 
 impl CredentialIssuer {
@@ -428,6 +492,75 @@ impl CredentialIssuer {
 
         Ok(CredentialIssuerEvaluateRequestResponse::default())
     }
+
+    /// Create a credential success response when all the previous steps are completed.
+    ///
+    /// # TODO
+    ///
+    /// - Should we error when the `credential` AND `acceptance_token` are both not supplied?
+    /// - `c_nonce_expires_in` gives the seconds it lives from issuance. How can we get the
+    ///   issuance timestamp?
+    ///
+    /// # Errors
+    ///
+    /// - When the `credential_request` is not valid
+    /// - When the `c_nonce` is expired
+    pub fn create_credential_success_response(
+        credential_request: &CredentialRequest,
+        credential_or_acceptance_token: Option<CredentialOrAcceptanceToken>,
+        c_nonce: Option<CNonce>,
+    ) -> CredentialIssuerResult<CredentialSuccessResponse> {
+        credential_request.validate()?;
+
+        let (c_nonce, c_nonce_expires_in) = match c_nonce {
+            Some(CNonce {
+                c_nonce,
+                c_nonce_expires_in,
+            }) => (Some(c_nonce), c_nonce_expires_in),
+            None => (None, None),
+        };
+
+        let (credential, acceptance_token) = match credential_or_acceptance_token {
+            Some(credential_or_acceptance_token) => match credential_or_acceptance_token {
+                CredentialOrAcceptanceToken::Credential(credential) => {
+                    let credential: CredentialFormatProfileOrEncoded = credential.try_into()?;
+                    (Some(credential), None)
+                }
+                CredentialOrAcceptanceToken::AcceptanceToken(token) => (None, Some(token)),
+            },
+            None => (None, None),
+        };
+
+        let response = CredentialSuccessResponse {
+            format: credential_request.format.get_format_name(),
+            credential,
+            acceptance_token,
+            c_nonce,
+            c_nonce_expires_in,
+        };
+
+        Ok(response)
+    }
+
+    /// Create an error response
+    ///
+    /// # Errors
+    ///
+    /// Unable to error, `Result` is used for consistency
+    pub fn create_credential_error_response(
+        error: &CredentialIssuerErrorCode,
+        error_description: Option<String>,
+        error_uri: Option<String>,
+        error_additional_details: Option<serde_json::Value>,
+    ) -> CredentialIssuerResult<CredentialIssuerErrorResponse> {
+        let response = CredentialIssuerErrorResponse {
+            error: error.clone(),
+            error_description,
+            error_uri,
+            error_additional_details,
+        };
+        Ok(response)
+    }
 }
 
 #[cfg(test)]
@@ -547,5 +680,251 @@ mod test_pre_evaluate_credential_request {
                 key_name: "jwk".to_owned()
             })
         );
+    }
+}
+
+#[cfg(test)]
+mod test_evaluate_credential_request {
+    use ssi_dids::Document;
+
+    use super::*;
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn should_evaluate_credential_request() {
+        let cfp = serde_json::json!({
+            "format": "jwt_vc_json",
+            "id": "UniversityDegree_JWT",
+            "types": [
+                "VerifiableCredential",
+                "UniversityDegreeCredential"
+            ],
+            "credentialSubject": {
+                "given_name": {
+                    "display": [
+                        {
+                            "name": "Given Name",
+                            "locale": "en-US"
+                        }
+                    ]
+                },
+                "last_name": {
+                    "display": [
+                        {
+                            "name": "Surname",
+                            "locale": "en-US"
+                        }
+                    ]
+                },
+                "degree": {},
+                "gpa": {
+                    "display": [
+                        {
+                            "name": "GPA"
+                        }
+                    ]
+                }
+            }
+        });
+
+        let issuer_metadata: CredentialIssuerMetadata = serde_json::from_value(serde_json::json!({
+            "credential_issuer": "01001110",
+            "credential_endpoint": "https://example.org",
+            "credentials_supported": [
+                &cfp
+            ],
+        }))
+        .expect("Unable to create issuer metadata");
+
+        let credential_request = CredentialRequest {
+         proof: Some(CredentialRequestProof {
+             proof_type: "jwt".to_owned(),
+             jwt: "ewogICJraWQiOiAiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjejZNa3BUSFI4Vk5zQnhZQUFXSHV0MkdlYWRkOWpTd3VCVjh4Um9BbndXc2R2a3RIIiwKICAiYWxnIjogIkVkRFNBIiwKICAidHlwIjogIm9wZW5pZDR2Y2ktcHJvb2Yrand0Igp9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
+         }),
+         format: CredentialFormatProfile::LdpVc {
+             context: vec![],
+             types: vec![],
+             credential_subject: None,
+             order: None,
+         },
+     };
+
+        let did_document = serde_json::json!({
+          "@context": [
+            "https://www.w3.org/ns/did/v1",
+            {
+              "Ed25519VerificationKey2018": "https://w3id.org/security#Ed25519VerificationKey2018",
+              "publicKeyJwk": {
+                "@id": "https://w3id.org/security#publicKeyJwk",
+                "@type": "@json"
+              }
+            }
+          ],
+          "id": "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH",
+          "verificationMethod": [
+            {
+              "id": "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH",
+              "type": "Ed25519VerificationKey2018",
+              "controller": "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH",
+              "publicKeyJwk": {
+                "kty": "OKP",
+                "crv": "Ed25519",
+                "x": "lJZrfAjkBXdfjebMHEUI9usidAPhAlssitLXR3OYxbI"
+              }
+            }
+          ],
+          "authentication": [
+            "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+          ],
+          "assertionMethod": [
+            "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+          ]
+        });
+
+        let did_document: Document =
+            serde_json::from_value(did_document).expect("Unable to create did document");
+
+        let evaluated = CredentialIssuer::evaluate_credential_request(
+            &issuer_metadata,
+            &credential_request,
+            None,
+            None,
+            Some(&did_document),
+        )
+        .expect("Unable to evaluate credential request");
+
+        assert_eq!(evaluated.algorithm, Some(ProofJwtAlgorithm::EdDSA));
+        assert_eq!(
+            evaluated.public_key,
+            Some(vec![
+                148, 150, 107, 124, 8, 228, 5, 119, 95, 141, 230, 204, 28, 69, 8, 246, 235, 34,
+                116, 3, 225, 2, 91, 44, 138, 210, 215, 71, 115, 152, 197, 178
+            ])
+        );
+
+        assert_eq!(
+            evaluated.message,
+            Some(vec![
+                123, 34, 116, 121, 112, 34, 58, 34, 111, 112, 101, 110, 105, 100, 52, 118, 99, 105,
+                45, 112, 114, 111, 111, 102, 43, 106, 119, 116, 34, 44, 34, 97, 108, 103, 34, 58,
+                34, 69, 100, 68, 83, 65, 34, 44, 34, 107, 105, 100, 34, 58, 34, 100, 105, 100, 58,
+                107, 101, 121, 58, 122, 54, 77, 107, 112, 84, 72, 82, 56, 86, 78, 115, 66, 120, 89,
+                65, 65, 87, 72, 117, 116, 50, 71, 101, 97, 100, 100, 57, 106, 83, 119, 117, 66, 86,
+                56, 120, 82, 111, 65, 110, 119, 87, 115, 100, 118, 107, 116, 72, 35, 122, 54, 77,
+                107, 112, 84, 72, 82, 56, 86, 78, 115, 66, 120, 89, 65, 65, 87, 72, 117, 116, 50,
+                71, 101, 97, 100, 100, 57, 106, 83, 119, 117, 66, 86, 56, 120, 82, 111, 65, 110,
+                119, 87, 115, 100, 118, 107, 116, 72, 34, 125, 46, 123, 34, 105, 115, 115, 34, 58,
+                34, 115, 54, 66, 104, 100, 82, 107, 113, 116, 51, 34, 44, 34, 97, 117, 100, 34, 58,
+                34, 104, 116, 116, 112, 115, 58, 47, 47, 115, 101, 114, 118, 101, 114, 46, 101,
+                120, 97, 109, 112, 108, 101, 46, 99, 111, 109, 34, 44, 34, 105, 97, 116, 34, 58,
+                34, 50, 48, 49, 56, 45, 48, 57, 45, 49, 52, 84, 50, 49, 58, 49, 57, 58, 49, 48, 90,
+                34, 44, 34, 110, 111, 110, 99, 101, 34, 58, 34, 116, 90, 105, 103, 110, 115, 110,
+                70, 98, 112, 34, 125
+            ])
+        );
+
+        assert_eq!(
+            evaluated.signature,
+            Some(vec![
+                101, 120, 97, 109, 112, 108, 101, 46, 99, 111, 109, 34, 44, 34, 105, 97, 116, 34,
+                58, 34, 50, 48, 49, 56, 45, 48, 57, 45, 49, 52, 84, 50, 49, 58, 49, 57, 58, 49, 48,
+                90, 34, 44, 34, 110, 111, 110, 99, 101, 34, 58, 34, 116, 90, 105, 103, 110, 115,
+                110, 70, 98, 112, 34, 125
+            ])
+        );
+    }
+}
+
+#[cfg(test)]
+mod test_create_credential_success_response {
+    use super::*;
+    use crate::base::base64url;
+
+    #[test]
+    fn should_create_success_response() {
+        let cfp = serde_json::json!({
+            "format": "jwt_vc_json",
+            "id": "UniversityDegree_JWT",
+            "types": [
+                "VerifiableCredential",
+                "UniversityDegreeCredential"
+            ],
+            "credentialSubject": {
+                "given_name": {
+                    "display": [
+                        {
+                            "name": "Given Name",
+                            "locale": "en-US"
+                        }
+                    ]
+                },
+                "last_name": {
+                    "display": [
+                        {
+                            "name": "Surname",
+                            "locale": "en-US"
+                        }
+                    ]
+                },
+                "degree": {},
+                "gpa": {
+                    "display": [
+                        {
+                            "name": "GPA"
+                        }
+                    ]
+                }
+            }
+        });
+
+        let credential_request = CredentialRequest {
+         proof: Some(CredentialRequestProof {
+             proof_type: "jwt".to_owned(),
+             jwt: "ewogICJraWQiOiAiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjejZNa3BUSFI4Vk5zQnhZQUFXSHV0MkdlYWRkOWpTd3VCVjh4Um9BbndXc2R2a3RIIiwKICAiYWxnIjogIkVkRFNBIiwKICAidHlwIjogIm9wZW5pZDR2Y2ktcHJvb2Yrand0Igp9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
+         }),
+         format: CredentialFormatProfile::LdpVc {
+             context: vec![],
+             types: vec![],
+             credential_subject: None,
+             order: None,
+         },
+     };
+
+        let credential = CredentialOrAcceptanceToken::Credential(
+            serde_json::from_value(cfp.clone())
+                .expect("Unable to create credential format profile"),
+        );
+
+        let now = Utc::now();
+        let success_response = CredentialIssuer::create_credential_success_response(
+            &credential_request,
+            Some(credential),
+            Some(CNonce {
+                c_nonce: "nonce".to_owned(),
+                c_nonce_expires_in: now,
+            }),
+        )
+        .expect("Unable to create success response");
+
+        let credential = match success_response
+            .credential
+            .as_ref()
+            .expect("No credential found")
+        {
+            CredentialFormatProfileOrEncoded::CredentialFormatProfile(cfp) => cfp.clone(),
+            CredentialFormatProfileOrEncoded::Encoded(e) => {
+                serde_json::from_slice(&base64url::decode(e).expect("Unable to decode cfp"))
+                    .expect("Unable to create cfp")
+            }
+        };
+
+        assert_eq!(success_response.format, "ldp_vc");
+        assert_eq!(
+            credential,
+            serde_json::from_value(cfp).expect("Unable to create cfp")
+        );
+        assert_eq!(success_response.acceptance_token, None);
+        assert_eq!(success_response.c_nonce, Some("nonce".to_owned()));
+        assert_eq!(success_response.c_nonce_expires_in, Some(now));
     }
 }

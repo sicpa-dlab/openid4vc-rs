@@ -1,17 +1,23 @@
 use crate::error::{GrpcError, Result};
 use crate::grpc_openid4vci::credential_issuer_service_server::CredentialIssuerService;
 use crate::grpc_openid4vci::{
+    CreateCredentialErrorResponseRequest, CreateCredentialErrorResponseResponse,
+    CreateCredentialSuccessResponseRequest, CreateCredentialSuccessResponseResponse,
     PreEvaluateCredentialRequestRequest, PreEvaluateCredentialRequestResponse,
 };
-use crate::utils::{deserialize_optional_slice, deserialize_slice, serialize_to_slice, serialize_to_optional_slice};
+use crate::utils::{
+    deserialize_optional_slice, deserialize_slice, serialize_to_optional_slice, serialize_to_slice,
+};
 use crate::CreateCredentialOfferResponse;
 use crate::{
     CreateCredentialOfferRequest, EvaluateCredentialRequestRequest,
     EvaluateCredentialRequestResponse,
 };
+use openid4vci::credential_issuer::error::CredentialIssuerError;
+use openid4vci::credential_issuer::error_code::CredentialIssuerErrorCode;
 use openid4vci::credential_issuer::{
-    AuthorizedCodeFlow, CredentialIssuer, CredentialIssuerEvaluateRequestResponse, CredentialOffer,
-    CredentialOrIds, PreAuthorizedCodeFlow,
+    AuthorizedCodeFlow, CNonce, CredentialIssuer, CredentialIssuerEvaluateRequestResponse,
+    CredentialOffer, CredentialOrAcceptanceToken, CredentialOrIds, PreAuthorizedCodeFlow,
 };
 use openid4vci::types::authorization_server_metadata::AuthorizationServerMetadata;
 use openid4vci::types::credential_issuer_metadata::CredentialIssuerMetadata;
@@ -122,6 +128,80 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
         let response = EvaluateCredentialRequestResponse {
             proof_of_possession: serialize_to_optional_slice(proof_of_possession)?,
         };
+
+        Ok(Response::new(response))
+    }
+
+    async fn create_credential_success_response(
+        &self,
+        request: Request<CreateCredentialSuccessResponseRequest>,
+    ) -> Result<Response<CreateCredentialSuccessResponseResponse>> {
+        let CreateCredentialSuccessResponseRequest {
+            credential_request,
+            credential,
+            acceptance_token,
+            c_nonce,
+            c_nonce_expires_in,
+        } = request.into_inner();
+
+        let credential_request = deserialize_slice::<CredentialRequest>(&credential_request)?;
+
+        let credential_or_acceptance_token = match (credential, acceptance_token) {
+            (None, None) => Ok(None),
+            (None, Some(token)) => Ok(Some(CredentialOrAcceptanceToken::AcceptanceToken(token))),
+            (Some(credential), None) => {
+                let credential = deserialize_slice(&credential)?;
+                Ok(Some(CredentialOrAcceptanceToken::Credential(credential)))
+            }
+            (Some(_), Some(_)) => Err(GrpcError::CredentialIssuerError(
+                CredentialIssuerError::CredentialAndAcceptanceTokenSupplied,
+            )),
+        }?;
+
+        let c_nonce = c_nonce.map(|c_nonce| CNonce {
+            c_nonce,
+            c_nonce_expires_in,
+        });
+
+        let response = CredentialIssuer::create_credential_success_response(
+            &credential_request,
+            credential_or_acceptance_token,
+            c_nonce,
+        )
+        .map_err(GrpcError::CredentialIssuerError)?;
+
+        let response = CreateCredentialSuccessResponseResponse {
+            success_response: serialize_to_slice(response)?,
+        };
+
+        Ok(Response::new(response))
+    }
+
+    async fn create_credential_error_response(
+        &self,
+        request: Request<CreateCredentialErrorResponseRequest>,
+    ) -> Result<Response<CreateCredentialErrorResponseResponse>> {
+        let CreateCredentialErrorResponseRequest {
+            error,
+            error_description,
+            error_uri,
+            error_additional_details,
+        } = request.into_inner();
+
+        let error =
+            CredentialIssuerErrorCode::try_from(error).map_err(GrpcError::ValidationError)?;
+        let error_additional_details = deserialize_optional_slice(&error_additional_details)?;
+
+        let error_response = CredentialIssuer::create_credential_error_response(
+            &error,
+            error_description,
+            error_uri,
+            error_additional_details,
+        )
+        .map_err(GrpcError::CredentialIssuerError)?;
+
+        let error_response = serialize_to_slice(error_response)?;
+        let response = CreateCredentialErrorResponseResponse { error_response };
 
         Ok(Response::new(response))
     }

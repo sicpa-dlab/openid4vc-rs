@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::error_response::ErrorResponse;
 use crate::types::token_type::AccessTokenType;
 
 use self::error::Result;
@@ -12,10 +13,13 @@ pub mod error;
 /// Module containing a structure for the error response
 pub mod error_response;
 
+/// Struct mapping for a `token error response` as defined in section 6.3 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.3)
+pub type AccessTokenErrorResponse = ErrorResponse<AccessTokenErrorCode>;
+
 /// Token structure which contains methods to create responses and evaluate input
 pub struct AccessToken;
 
-/// Struct mapping of the `token success response` as defined in section 6.2 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.2)
+/// Struct mapping for a `token success response` as defined in section 6.2 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.2)
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct AccessTokenSuccessResponse {
     /// (OAuth2) The access token issued by the authorization server.
@@ -51,36 +55,23 @@ pub struct AccessTokenSuccessResponse {
     pub interval: Option<u64>,
 }
 
-/// Struct mapping of the `token error response` as defined in section 6.3 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.3)
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub struct AccessTokenErrorResponse {
-    /// Error code indicating why the token request failed.
-    pub error: AccessTokenErrorCode,
-
-    /// Human-readable ASCII text providing additional information,
-    /// used to assist the client developer in understanding the error that occurred.
-    pub error_description: Option<String>,
-
-    /// A URI identifying a human-readable web page with information about the error,
-    /// used to provide the client developer with additional information about the error.
-    pub error_uri: Option<String>,
-}
-
 impl AccessToken {
     /// Create an error response
     ///
     /// # Errors
     ///
     /// Unable to error, `Result` is used for consistency
-    pub fn create_error_response(
+    pub fn create_access_token_error_response(
         error: error_response::AccessTokenErrorCode,
         error_description: Option<String>,
         error_uri: Option<String>,
+        error_additional_details: Option<serde_json::Value>,
     ) -> Result<AccessTokenErrorResponse> {
         let error_response = AccessTokenErrorResponse {
             error,
             error_description,
             error_uri,
+            error_additional_details,
         };
 
         Ok(error_response)
@@ -91,8 +82,8 @@ impl AccessToken {
     /// # Errors
     ///
     /// Unable to error, `Result` is used for consistency
-    ///
-    pub fn create_success_response(
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_access_token_success_response(
         access_token: String,
         token_type: AccessTokenType,
         expires_in: Option<u64>,
@@ -127,6 +118,7 @@ mod test_access_token {
             AccessTokenErrorCode::InvalidRequest,
             Some("error description".to_owned()),
             Some("error uri".to_owned()),
+            None,
         )
         .expect("Unable to create access token error response");
 

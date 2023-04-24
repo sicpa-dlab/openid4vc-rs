@@ -98,7 +98,7 @@ impl TryFrom<String> for AccessTokenErrorCode {
 }
 
 #[cfg(test)]
-mod tests_error_response {
+mod test_error_response {
     use super::*;
 
     #[test]

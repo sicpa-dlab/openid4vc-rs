@@ -41,3 +41,6 @@ pub mod validate;
 
 /// Module for base64, base64url and base58 encoding
 mod base;
+
+/// Module for a generic error response
+mod error_response;

@@ -817,7 +817,6 @@ mod test_jwt {
         };
 
         let res = jwt_header.extract_key_and_alg(None);
-        println!("{res:?}");
 
         assert!(matches!(res, Err(JwtError::UnsupportedAlgorithm { .. })));
     }
