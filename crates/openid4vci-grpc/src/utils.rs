@@ -82,8 +82,7 @@ mod utils_tests {
         let input = serde_json::json!({"a": "b"});
         let expected = Some(input.to_string().as_bytes().to_vec());
 
-        let output =
-            serialize_to_optional_slice(Some(input)).expect("Unable to deserialize value");
+        let output = serialize_to_optional_slice(Some(input)).expect("Unable to deserialize value");
 
         assert_eq!(output, expected);
     }
@@ -91,8 +90,7 @@ mod utils_tests {
     #[test]
     fn should_optionally_serialize_without_value() {
         let input: Option<()> = None;
-        let output =
-            serialize_to_optional_slice(input).expect("Unable to deserialize value");
+        let output = serialize_to_optional_slice(input).expect("Unable to deserialize value");
 
         assert_eq!(output, None);
     }

@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::validate::{Validatable, ValidationError};
+use crate::{
+    base::base64url,
+    validate::{Validatable, ValidationError},
+};
 
 /// A struct mapping a `credential` type as defined in Appendix E in the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#format_profiles)
@@ -145,6 +148,48 @@ pub struct CredentialSubjectDisplay {
 impl Validatable for CredentialFormatProfile {
     fn validate(&self) -> Result<(), ValidationError> {
         Ok(())
+    }
+}
+
+/// Enum union type for a [`CredentialFormatProfile`] or [`String`]. This depends on the encoding
+/// format as specified in Appendix E of the [openid4vci
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-format-profiles).
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum CredentialFormatProfileOrEncoded {
+    /// [`CredentialFormatProfile`]
+    CredentialFormatProfile(CredentialFormatProfile),
+
+    /// Base64url, for now, encoded credential
+    Encoded(String),
+}
+
+impl TryFrom<CredentialFormatProfile> for CredentialFormatProfileOrEncoded {
+    type Error = ValidationError;
+
+    fn try_from(value: CredentialFormatProfile) -> Result<Self, Self::Error> {
+        match value {
+            CredentialFormatProfile::MsoMdoc { .. }
+            | CredentialFormatProfile::JwtVcJson { .. }
+            | CredentialFormatProfile::JwtVcJsonLd { .. } => Ok(Self::Encoded(base64url::encode(
+                serde_json::to_string(&value)?,
+            ))),
+            CredentialFormatProfile::LdpVc { .. } => Ok(Self::CredentialFormatProfile(value)),
+        }
+    }
+}
+
+impl CredentialFormatProfile {
+    /// Get the format name for a [`CredentialFormatProfile`]
+    #[must_use]
+    pub fn get_format_name(&self) -> String {
+        let s = match self {
+            Self::JwtVcJson { .. } => "jwt_vc_json",
+            Self::JwtVcJsonLd { .. } => "jwt_vc_json-ld",
+            Self::LdpVc { .. } => "ldp_vc",
+            Self::MsoMdoc { .. } => "mso_mdoc",
+        };
+
+        s.to_owned()
     }
 }
 

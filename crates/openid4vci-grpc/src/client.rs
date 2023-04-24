@@ -13,6 +13,7 @@ use openid4vci_grpc::{
 };
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut credential_issuer_client =
         CredentialIssuerServiceClient::connect("http://0.0.0.0:50051").await?;
@@ -90,10 +91,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         error: "invalid_request".to_string(),
         error_description: Some("An error".to_string()),
         error_uri: Some("https://uri.com".to_string()),
+        error_additional_details: Some(
+            serde_json::to_vec(&serde_json::json!({"hello": "world"})).unwrap(),
+        ),
     });
 
     let response = access_token_client
-        .create_error_response(request)
+        .create_access_token_error_response(request)
         .await?
         .into_inner();
 
@@ -137,7 +141,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let response = access_token_client
-        .create_success_response(request)
+        .create_access_token_success_response(request)
         .await?
         .into_inner();
 

@@ -30,7 +30,7 @@ pub mod base64url {
     where
         T: AsRef<[u8]>,
     {
-        general_purpose::STANDARD_NO_PAD.decode(input)
+        general_purpose::URL_SAFE_NO_PAD.decode(input)
     }
 
     /// Encode bytes into a base64 url-safe string
@@ -39,7 +39,7 @@ pub mod base64url {
     where
         T: AsRef<[u8]>,
     {
-        general_purpose::STANDARD_NO_PAD.encode(input)
+        general_purpose::URL_SAFE_NO_PAD.encode(input)
     }
 }
 

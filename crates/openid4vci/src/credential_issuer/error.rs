@@ -1,6 +1,7 @@
 use crate::jwt::error::JwtError;
 use crate::types::credential::CredentialFormatProfile;
 use crate::validate::ValidationError;
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use thiserror::Error;
 
@@ -50,6 +51,18 @@ pub enum CredentialIssuerError {
         /// issuer supported credential formats
         supported_formats: Vec<CredentialFormatProfile>,
     } = 105,
+
+    #[error("`c_nonce_expires_in` is not valid anymore.")]
+    ExpiredCNonce {
+        /// Timetstamp of now
+        now: DateTime<Utc>,
+
+        /// Timestamp of when the `c_nonce` expires
+        expires_in: Option<DateTime<Utc>>,
+    } = 106,
+
+    #[error("Credential and acceptance token cannot both be supplied for the success response")]
+    CredentialAndAcceptanceTokenSupplied = 107,
 }
 
 error_impl!(CredentialIssuerError);
@@ -67,8 +80,6 @@ mod credential_issuer_error_tests {
         };
         let credential_issuer_error: CredentialIssuerError = validation_error.into();
         let error_information = credential_issuer_error.information();
-
-        println!("{error_information:?}");
 
         assert!(error_information.code == 100);
         assert!(error_information.name == "ValidationError");

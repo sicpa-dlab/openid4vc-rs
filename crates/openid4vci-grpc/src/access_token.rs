@@ -1,6 +1,7 @@
 use crate::error::GrpcError;
 use crate::error::Result;
 use crate::grpc_openid4vci::access_token_service_server::AccessTokenService;
+use crate::utils::deserialize_optional_slice;
 use crate::utils::serialize_to_slice;
 use crate::CreateAccessTokenErrorResponseRequest;
 use crate::CreateAccessTokenErrorResponseResponse;
@@ -19,7 +20,7 @@ pub struct GrpcAccessToken;
 
 #[tonic::async_trait]
 impl AccessTokenService for GrpcAccessToken {
-    async fn create_error_response(
+    async fn create_access_token_error_response(
         &self,
         request: Request<CreateAccessTokenErrorResponseRequest>,
     ) -> Result<Response<CreateAccessTokenErrorResponseResponse>> {
@@ -27,13 +28,19 @@ impl AccessTokenService for GrpcAccessToken {
             error,
             error_description,
             error_uri,
+            error_additional_details,
         } = request.into_inner();
 
         let error = AccessTokenErrorCode::try_from(error).map_err(GrpcError::ValidationError)?;
+        let error_additional_details = deserialize_optional_slice(&error_additional_details)?;
 
-        let error_response =
-            AccessToken::create_error_response(error, error_description, error_uri)
-                .map_err(GrpcError::AccessTokenError)?;
+        let error_response = AccessToken::create_access_token_error_response(
+            error,
+            error_description,
+            error_uri,
+            error_additional_details,
+        )
+        .map_err(GrpcError::AccessTokenError)?;
 
         let error_response = serialize_to_slice(error_response)?;
         let response = CreateAccessTokenErrorResponseResponse { error_response };
@@ -41,7 +48,7 @@ impl AccessTokenService for GrpcAccessToken {
         Ok(Response::new(response))
     }
 
-    async fn create_success_response(
+    async fn create_access_token_success_response(
         &self,
         request: Request<CreateAccessTokenSuccessResponseRequest>,
     ) -> Result<Response<CreateAccessTokenSuccessResponseResponse>> {
@@ -59,7 +66,7 @@ impl AccessTokenService for GrpcAccessToken {
         let token_type =
             AccessTokenType::try_from(token_type).map_err(GrpcError::ValidationError)?;
 
-        let success_response = AccessToken::create_success_response(
+        let success_response = AccessToken::create_access_token_success_response(
             access_token,
             token_type,
             expires_in,
@@ -80,7 +87,7 @@ impl AccessTokenService for GrpcAccessToken {
 }
 
 #[cfg(test)]
-mod credential_issuer_tests {
+mod test_access_token {
     use super::*;
     use openid4vci::access_token::{AccessTokenErrorResponse, AccessTokenSuccessResponse};
 
@@ -92,10 +99,14 @@ mod credential_issuer_tests {
             error: "invalid_request".to_string(),
             error_description: Some("Some Error".to_string()),
             error_uri: Some("error_uri".to_string()),
+            error_additional_details: Some(
+                serde_json::to_vec(&serde_json::json!({"hello": "world"}))
+                    .expect("Unable to create slice from json"),
+            ),
         };
 
         let response = access_token
-            .create_error_response(Request::new(message))
+            .create_access_token_error_response(Request::new(message))
             .await
             .expect("Unable to create error response");
 
@@ -103,6 +114,7 @@ mod credential_issuer_tests {
             error: AccessTokenErrorCode::InvalidRequest,
             error_description: Some("Some Error".to_string()),
             error_uri: Some("error_uri".to_string()),
+            error_additional_details: Some(serde_json::json!({"hello": "world"})),
         };
 
         let response = response.into_inner();
@@ -132,7 +144,7 @@ mod credential_issuer_tests {
         };
 
         let response = access_token
-            .create_success_response(Request::new(message))
+            .create_access_token_success_response(Request::new(message))
             .await
             .expect("Unable to create success response");
 
