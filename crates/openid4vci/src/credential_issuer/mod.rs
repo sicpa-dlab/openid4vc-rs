@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use self::error::CredentialIssuerError;
 use self::error::CredentialIssuerResult;
 use self::error_code::CredentialIssuerErrorCode;
@@ -16,6 +14,7 @@ use crate::validate::Validatable;
 use crate::validate::ValidationError;
 use serde::Deserialize;
 use serde::Serialize;
+use std::str::FromStr;
 
 /// Error module for the credential issuance module
 pub mod error;
@@ -793,18 +792,22 @@ mod test_evaluate_credential_request {
         )
         .expect("Unable to evaluate credential request");
 
-        assert_eq!(evaluated.algorithm, Some(ProofJwtAlgorithm::EdDSA));
+        let evaluated = evaluated
+            .proof_of_possession
+            .expect("No proof of possession found");
+
+        assert_eq!(evaluated.algorithm, ProofJwtAlgorithm::EdDSA);
         assert_eq!(
             evaluated.public_key,
-            Some(vec![
+            vec![
                 148, 150, 107, 124, 8, 228, 5, 119, 95, 141, 230, 204, 28, 69, 8, 246, 235, 34,
                 116, 3, 225, 2, 91, 44, 138, 210, 215, 71, 115, 152, 197, 178
-            ])
+            ]
         );
 
         assert_eq!(
             evaluated.message,
-            Some(vec![
+            vec![
                 123, 34, 116, 121, 112, 34, 58, 34, 111, 112, 101, 110, 105, 100, 52, 118, 99, 105,
                 45, 112, 114, 111, 111, 102, 43, 106, 119, 116, 34, 44, 34, 97, 108, 103, 34, 58,
                 34, 69, 100, 68, 83, 65, 34, 44, 34, 107, 105, 100, 34, 58, 34, 100, 105, 100, 58,
@@ -820,17 +823,17 @@ mod test_evaluate_credential_request {
                 34, 50, 48, 49, 56, 45, 48, 57, 45, 49, 52, 84, 50, 49, 58, 49, 57, 58, 49, 48, 90,
                 34, 44, 34, 110, 111, 110, 99, 101, 34, 58, 34, 116, 90, 105, 103, 110, 115, 110,
                 70, 98, 112, 34, 125
-            ])
+            ]
         );
 
         assert_eq!(
             evaluated.signature,
-            Some(vec![
+            vec![
                 101, 120, 97, 109, 112, 108, 101, 46, 99, 111, 109, 34, 44, 34, 105, 97, 116, 34,
                 58, 34, 50, 48, 49, 56, 45, 48, 57, 45, 49, 52, 84, 50, 49, 58, 49, 57, 58, 49, 48,
                 90, 34, 44, 34, 110, 111, 110, 99, 101, 34, 58, 34, 116, 90, 105, 103, 110, 115,
                 110, 70, 98, 112, 34, 125
-            ])
+            ]
         );
     }
 }
@@ -895,13 +898,12 @@ mod test_create_credential_success_response {
                 .expect("Unable to create credential format profile"),
         );
 
-        let now = Utc::now();
         let success_response = CredentialIssuer::create_credential_success_response(
             &credential_request,
             Some(credential),
             Some(CNonce {
                 c_nonce: "nonce".to_owned(),
-                c_nonce_expires_in: now,
+                c_nonce_expires_in: Some(10),
             }),
         )
         .expect("Unable to create success response");
@@ -925,6 +927,6 @@ mod test_create_credential_success_response {
         );
         assert_eq!(success_response.acceptance_token, None);
         assert_eq!(success_response.c_nonce, Some("nonce".to_owned()));
-        assert_eq!(success_response.c_nonce_expires_in, Some(now));
+        assert_eq!(success_response.c_nonce_expires_in, Some(10));
     }
 }

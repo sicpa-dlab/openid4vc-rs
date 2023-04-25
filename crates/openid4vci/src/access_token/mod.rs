@@ -4,7 +4,7 @@ use serde::Serialize;
 use crate::error_response::ErrorResponse;
 use crate::types::token_type::AccessTokenType;
 
-use self::error::Result;
+use self::error::AccessTokenResult;
 use self::error_response::AccessTokenErrorCode;
 
 /// Error module for the access token module
@@ -20,7 +20,7 @@ pub type AccessTokenErrorResponse = ErrorResponse<AccessTokenErrorCode>;
 pub struct AccessToken;
 
 /// Struct mapping for a `token success response` as defined in section 6.2 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.2)
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct AccessTokenSuccessResponse {
     /// (OAuth2) The access token issued by the authorization server.
     pub access_token: String,
@@ -66,7 +66,7 @@ impl AccessToken {
         error_description: Option<String>,
         error_uri: Option<String>,
         error_additional_details: Option<serde_json::Value>,
-    ) -> Result<AccessTokenErrorResponse> {
+    ) -> AccessTokenResult<AccessTokenErrorResponse> {
         let error_response = AccessTokenErrorResponse {
             error,
             error_description,
@@ -92,7 +92,7 @@ impl AccessToken {
         c_nonce_expires_in: Option<u64>,
         authorization_pending: Option<bool>,
         interval: Option<u64>,
-    ) -> Result<AccessTokenSuccessResponse> {
+    ) -> AccessTokenResult<AccessTokenSuccessResponse> {
         let token_response = AccessTokenSuccessResponse {
             access_token,
             token_type,
@@ -114,7 +114,7 @@ mod test_access_token {
 
     #[test]
     fn error_response() {
-        let error_response = AccessToken::create_error_response(
+        let error_response = AccessToken::create_access_token_error_response(
             AccessTokenErrorCode::InvalidRequest,
             Some("error description".to_owned()),
             Some("error uri".to_owned()),
@@ -132,17 +132,18 @@ mod test_access_token {
 
     #[test]
     fn success_response() {
-        let success_response: AccessTokenSuccessResponse = AccessToken::create_success_response(
-            "Hello".to_string(),
-            AccessTokenType::Bearer,
-            Some(3600),
-            Some("scope".to_string()),
-            Some("c_nonce".to_string()),
-            Some(3600),
-            Some(true),
-            Some(5),
-        )
-        .expect("Unable to create access token success response");
+        let success_response: AccessTokenSuccessResponse =
+            AccessToken::create_access_token_success_response(
+                "Hello".to_string(),
+                AccessTokenType::Bearer,
+                Some(3600),
+                Some("scope".to_string()),
+                Some("c_nonce".to_string()),
+                Some(3600),
+                Some(true),
+                Some(5),
+            )
+            .expect("Unable to create access token success response");
 
         assert_eq!(success_response.access_token, "Hello".to_string());
         assert_eq!(success_response.token_type, AccessTokenType::Bearer);

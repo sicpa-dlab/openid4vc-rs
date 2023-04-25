@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package openid4vci;
+
+message Error {
+  uint32 code = 1;
+  string name = 2;
+  string description = 3;
+  optional bytes additional_information = 4;
+}

@@ -2,7 +2,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 /// Result type which automatically sets the error type to [`AccessTokenError`]
-pub type Result<T> = std::result::Result<T, AccessTokenError>;
+pub type AccessTokenResult<T> = std::result::Result<T, AccessTokenError>;
 
 /// Error enum for development when an error occurs related to the [`super::AccessToken`] struct.
 // TODO: Enable when we add an item to the enum
@@ -11,7 +11,7 @@ pub type Result<T> = std::result::Result<T, AccessTokenError>;
 #[serde(untagged)]
 pub enum AccessTokenError {}
 
-error_impl!(AccessTokenError);
+error_impl!(AccessTokenError, AccessTokenResult);
 
 #[cfg(test)]
 mod access_token_error_tests {

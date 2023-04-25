@@ -4,9 +4,6 @@
 //! [client.rs](./client.rs) for a client example and [server.rs](./server.rs) for a server
 //! example.
 
-#[macro_use]
-extern crate strum;
-
 /// Credential issuer module which wraps [`openid4vci::credential_issuer`]
 mod credential_issuer;
 pub use credential_issuer::*;
@@ -39,6 +36,8 @@ mod utils;
 pub use grpc_openid4vci::credential_issuer_service_client as credential_issuer_client;
 pub use grpc_openid4vci::credential_issuer_service_server as credential_issuer_server;
 pub use grpc_openid4vci::{
+    create_access_token_error_response_response, create_access_token_success_response_response,
+    create_credential_offer_response, pre_evaluate_credential_request_response,
     CreateCredentialOfferRequest, CreateCredentialOfferResponse, EvaluateCredentialRequestRequest,
     EvaluateCredentialRequestResponse, PreEvaluateCredentialRequestRequest,
     PreEvaluateCredentialRequestResponse,

@@ -4,12 +4,15 @@ use serde::Serialize;
 use serde_json::Value;
 use thiserror::Error;
 
+/// Wrapper around result to implement `to_return_object` on
+pub type Result<T> = std::result::Result<T, ErrorInformation>;
+
 /// Generic error structure that can be send over FFI, for example, that contains machine and human
 /// readable information to resolve error.
 ///
 /// `additional_information` can be used to help the user of this library with more information. It
 /// accepts any `serde_json::Value` type.
-#[derive(Error, Debug, Default, Serialize)]
+#[derive(Error, Debug, Default, Serialize, Clone)]
 pub struct ErrorInformation {
     /// Generic error code. See the specific error implementations, like
     /// [`crate::credential_issuer::error::CredentialIssuerError`]
@@ -23,8 +26,8 @@ pub struct ErrorInformation {
     pub description: String,
 
     /// Additional information that might help the user debug the error
-    #[serde(skip_serializing_if = "serde_json::Value::is_null")]
-    pub additional_information: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_information: Option<Value>,
 }
 
 impl fmt::Display for ErrorInformation {
@@ -44,7 +47,7 @@ impl ErrorInformation {
         code: impl Into<u32>,
         name: impl Into<String>,
         description: impl Into<String>,
-        additional_information: Value,
+        additional_information: Option<Value>,
     ) -> Self {
         Self {
             code: code.into(),

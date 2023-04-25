@@ -1,21 +1,32 @@
 syntax = "proto3";
 
+import "error.proto";
+
 package openid4vci;
 
 service AccessTokenService {
-    rpc CreateAccessTokenErrorResponse (CreateAccessTokenErrorResponseRequest) returns (CreateAccessTokenErrorResponseResponse);
-    rpc CreateAccessTokenSuccessResponse (CreateAccessTokenSuccessResponseRequest) returns (CreateAccessTokenSuccessResponseResponse);
+  rpc CreateAccessTokenErrorResponse(CreateAccessTokenErrorResponseRequest)
+      returns (CreateAccessTokenErrorResponseResponse);
+  rpc CreateAccessTokenSuccessResponse(CreateAccessTokenSuccessResponseRequest)
+      returns (CreateAccessTokenSuccessResponseResponse);
 }
 
 message CreateAccessTokenErrorResponseRequest {
   string error = 1;
   optional string error_description = 2;
   optional string error_uri = 3;
-  optional bytes error_additional_details = 4; 
+  optional bytes error_additional_details = 4;
 }
 
 message CreateAccessTokenErrorResponseResponse {
-  bytes error_response = 1;
+  oneof response {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    bytes error_response = 1;
+  }
 }
 
 message CreateAccessTokenSuccessResponseRequest {
@@ -30,5 +41,12 @@ message CreateAccessTokenSuccessResponseRequest {
 }
 
 message CreateAccessTokenSuccessResponseResponse {
-  bytes success_response = 1;
+  oneof response {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    bytes success_response = 1;
+  }
 }

@@ -1,13 +1,14 @@
 use crate::error::GrpcError;
-use crate::error::Result;
+use crate::error::GrpcResult;
 use crate::grpc_openid4vci::access_token_service_server::AccessTokenService;
+use crate::grpc_openid4vci::create_access_token_error_response_response;
+use crate::grpc_openid4vci::create_access_token_success_response_response;
 use crate::utils::deserialize_optional_slice;
 use crate::utils::serialize_to_slice;
 use crate::CreateAccessTokenErrorResponseRequest;
 use crate::CreateAccessTokenErrorResponseResponse;
 use crate::CreateAccessTokenSuccessResponseRequest;
 use crate::CreateAccessTokenSuccessResponseResponse;
-
 use openid4vci::access_token::{error_response::AccessTokenErrorCode, AccessToken};
 use openid4vci::types::token_type::AccessTokenType;
 use tonic::{Request, Response};
@@ -23,7 +24,7 @@ impl AccessTokenService for GrpcAccessToken {
     async fn create_access_token_error_response(
         &self,
         request: Request<CreateAccessTokenErrorResponseRequest>,
-    ) -> Result<Response<CreateAccessTokenErrorResponseResponse>> {
+    ) -> GrpcResult<Response<CreateAccessTokenErrorResponseResponse>> {
         let CreateAccessTokenErrorResponseRequest {
             error,
             error_description,
@@ -34,24 +35,31 @@ impl AccessTokenService for GrpcAccessToken {
         let error = AccessTokenErrorCode::try_from(error).map_err(GrpcError::ValidationError)?;
         let error_additional_details = deserialize_optional_slice(&error_additional_details)?;
 
-        let error_response = AccessToken::create_access_token_error_response(
+        let response = match AccessToken::create_access_token_error_response(
             error,
             error_description,
             error_uri,
             error_additional_details,
         )
-        .map_err(GrpcError::AccessTokenError)?;
+        .map_err(GrpcError::AccessTokenError)
+        {
+            Ok(response) => create_access_token_error_response_response::Response::Success(
+                create_access_token_error_response_response::Success {
+                    error_response: serialize_to_slice(response)?,
+                },
+            ),
+            Err(e) => create_access_token_error_response_response::Response::Error(e.try_into()?),
+        };
 
-        let error_response = serialize_to_slice(error_response)?;
-        let response = CreateAccessTokenErrorResponseResponse { error_response };
-
-        Ok(Response::new(response))
+        Ok(Response::new(CreateAccessTokenErrorResponseResponse {
+            response: Some(response),
+        }))
     }
 
     async fn create_access_token_success_response(
         &self,
         request: Request<CreateAccessTokenSuccessResponseRequest>,
-    ) -> Result<Response<CreateAccessTokenSuccessResponseResponse>> {
+    ) -> GrpcResult<Response<CreateAccessTokenSuccessResponseResponse>> {
         let CreateAccessTokenSuccessResponseRequest {
             access_token,
             token_type,
@@ -66,7 +74,7 @@ impl AccessTokenService for GrpcAccessToken {
         let token_type =
             AccessTokenType::try_from(token_type).map_err(GrpcError::ValidationError)?;
 
-        let success_response = AccessToken::create_access_token_success_response(
+        let response = match AccessToken::create_access_token_success_response(
             access_token,
             token_type,
             expires_in,
@@ -76,13 +84,19 @@ impl AccessTokenService for GrpcAccessToken {
             authorization_pending,
             interval,
         )
-        .map_err(GrpcError::AccessTokenError)?;
+        .map_err(GrpcError::AccessTokenError)
+        {
+            Ok(response) => create_access_token_success_response_response::Response::Success(
+                create_access_token_success_response_response::Success {
+                    success_response: serialize_to_slice(response)?,
+                },
+            ),
+            Err(e) => create_access_token_success_response_response::Response::Error(e.try_into()?),
+        };
 
-        let success_response = serialize_to_slice(success_response)?;
-        let response: CreateAccessTokenSuccessResponseResponse =
-            CreateAccessTokenSuccessResponseResponse { success_response };
-
-        Ok(Response::new(response))
+        Ok(Response::new(CreateAccessTokenSuccessResponseResponse {
+            response: Some(response),
+        }))
     }
 }
 
@@ -94,6 +108,19 @@ mod test_access_token {
     #[tokio::test]
     async fn should_create_error_response() {
         let access_token = GrpcAccessToken::default();
+
+        let expected_error_response = AccessTokenErrorResponse {
+            error: AccessTokenErrorCode::InvalidRequest,
+            error_description: Some("Some Error".to_string()),
+            error_uri: Some("error_uri".to_string()),
+            error_additional_details: Some(serde_json::json!({"hello": "world"})),
+        };
+        let expected = create_access_token_error_response_response::Response::Success(
+            create_access_token_error_response_response::Success {
+                error_response: serialize_to_slice(expected_error_response)
+                    .expect("Unable to serialize error response"),
+            },
+        );
 
         let message = CreateAccessTokenErrorResponseRequest {
             error: "invalid_request".to_string(),
@@ -110,26 +137,32 @@ mod test_access_token {
             .await
             .expect("Unable to create error response");
 
-        let expected_error_response = AccessTokenErrorResponse {
-            error: AccessTokenErrorCode::InvalidRequest,
-            error_description: Some("Some Error".to_string()),
-            error_uri: Some("error_uri".to_string()),
-            error_additional_details: Some(serde_json::json!({"hello": "world"})),
-        };
-
         let response = response.into_inner();
-        let error_response = serialize_to_slice(&expected_error_response)
-            .expect("Unable to serialize error response");
 
-        assert_eq!(
-            response,
-            CreateAccessTokenErrorResponseResponse { error_response }
-        );
+        assert_eq!(response.response, Some(expected));
     }
 
     #[tokio::test]
     async fn should_create_success_response() {
         let access_token = GrpcAccessToken::default();
+
+        let expected_success_response = AccessTokenSuccessResponse {
+            access_token: "access_token".to_string(),
+            token_type: AccessTokenType::Bearer,
+            expires_in: Some(3600),
+            scope: Some("Hello World".to_string()),
+            c_nonce: Some("c_nonce".to_string()),
+            c_nonce_expires_in: Some(1800),
+            authorization_pending: Some(false),
+            interval: Some(5),
+        };
+
+        let expected = create_access_token_success_response_response::Response::Success(
+            create_access_token_success_response_response::Success {
+                success_response: serialize_to_slice(expected_success_response)
+                    .expect("Unable to serialize success response"),
+            },
+        );
 
         let message = CreateAccessTokenSuccessResponseRequest {
             access_token: "access_token".to_string(),
@@ -148,24 +181,8 @@ mod test_access_token {
             .await
             .expect("Unable to create success response");
 
-        let expected_success_response = AccessTokenSuccessResponse {
-            access_token: "access_token".to_string(),
-            token_type: AccessTokenType::Bearer,
-            expires_in: Some(3600),
-            scope: Some("Hello World".to_string()),
-            c_nonce: Some("c_nonce".to_string()),
-            c_nonce_expires_in: Some(1800),
-            authorization_pending: Some(false),
-            interval: Some(5),
-        };
-
         let response: CreateAccessTokenSuccessResponseResponse = response.into_inner();
-        let success_response = serialize_to_slice(&expected_success_response)
-            .expect("Unable to serialize success response");
 
-        assert_eq!(
-            response,
-            CreateAccessTokenSuccessResponseResponse { success_response }
-        );
+        assert_eq!(response.response, Some(expected));
     }
 }

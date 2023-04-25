@@ -6,8 +6,11 @@ use serde::Serialize;
 use thiserror::Error;
 use tonic::{Code, Status};
 
+use crate::utils::serialize_to_optional_slice;
+
 /// Generic `gRPC` error that wraps errors from the [`openid4vci`] crate
-#[derive(Error, Debug, AsRefStr, Serialize)]
+#[derive(Error, Debug, Serialize)]
+#[serde(untagged)]
 pub enum GrpcError {
     /// [`CredentialIssuerError`] wrapper
     #[error(transparent)]
@@ -22,7 +25,36 @@ pub enum GrpcError {
     ValidationError(#[from] ValidationError),
 }
 
+impl AsRef<str> for GrpcError {
+    fn as_ref(&self) -> &str {
+        match self {
+            GrpcError::CredentialIssuerError(e) => e.as_ref(),
+            GrpcError::AccessTokenError(e) => e.as_ref(),
+            GrpcError::ValidationError(e) => e.as_ref(),
+        }
+    }
+}
+
+/// Result type which automatically sets the error type to [`GrpcError`]
+pub(crate) type GrpcResult<T> = std::result::Result<T, Status>;
+
 error_impl!(GrpcError);
+
+impl TryFrom<GrpcError> for crate::grpc_openid4vci::Error {
+    type Error = GrpcError;
+
+    fn try_from(value: GrpcError) -> Result<Self, Self::Error> {
+        let information = value.information();
+        let additional_information =
+            serialize_to_optional_slice(information.additional_information)?;
+        Ok(crate::grpc_openid4vci::Error {
+            code: information.code,
+            name: information.name,
+            description: information.description,
+            additional_information,
+        })
+    }
+}
 
 impl From<GrpcError> for Status {
     fn from(value: GrpcError) -> Self {
@@ -39,6 +71,3 @@ impl From<GrpcError> for Status {
         Self::new(code, message)
     }
 }
-
-/// Result type which automatically sets the error type to [`GrpcError`]
-pub(crate) type Result<T> = std::result::Result<T, Status>;

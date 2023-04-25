@@ -14,10 +14,10 @@ pub enum ValidationError {
     } = 1,
 }
 
-error_impl!(ValidationError);
-
 /// Validation result used for the [`ValidationError`]
 pub type ValidationResult<T> = std::result::Result<T, ValidationError>;
+
+error_impl!(ValidationError, ValidationResult);
 
 impl From<base64::DecodeError> for ValidationError {
     fn from(e: base64::DecodeError) -> Self {
