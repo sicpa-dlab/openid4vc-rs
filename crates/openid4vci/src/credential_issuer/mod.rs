@@ -350,7 +350,7 @@ pub struct CredentialSuccessResponse {
 }
 
 /// Struct value as a union for the input to either contain a `c_nonce` and a `c_nonce_expires_in` as
-/// a [`DateTime`]. These values always have to be supplied together.
+/// a [`Option<u64>`]. These values always have to be supplied together.
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Hash)]
 pub struct CNonce {
     /// JSON string containing a nonce to be used to create a proof of possession of key material

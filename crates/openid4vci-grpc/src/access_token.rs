@@ -1,9 +1,13 @@
 use crate::error::GrpcError;
 use crate::error::GrpcResult;
+use crate::evaluate_access_token_request_response;
 use crate::grpc_openid4vci::access_token_service_server::AccessTokenService;
 use crate::grpc_openid4vci::create_access_token_error_response_response;
 use crate::grpc_openid4vci::create_access_token_success_response_response;
+use crate::grpc_openid4vci::EvaluateAccessTokenRequestRequest;
+use crate::grpc_openid4vci::EvaluateAccessTokenRequestResponse;
 use crate::utils::deserialize_optional_slice;
+use crate::utils::deserialize_slice;
 use crate::utils::serialize_to_slice;
 use crate::CreateAccessTokenErrorResponseRequest;
 use crate::CreateAccessTokenErrorResponseResponse;
@@ -95,6 +99,41 @@ impl AccessTokenService for GrpcAccessToken {
         };
 
         Ok(Response::new(CreateAccessTokenSuccessResponseResponse {
+            response: Some(response),
+        }))
+    }
+
+    async fn evaluate_access_token_request(
+        &self,
+        request: Request<EvaluateAccessTokenRequestRequest>,
+    ) -> GrpcResult<Response<EvaluateAccessTokenRequestResponse>> {
+        let EvaluateAccessTokenRequestRequest {
+            access_token_request,
+            credential_offer,
+            evaluate_access_token_request_options,
+        } = request.into_inner();
+
+        let access_token_request = deserialize_slice(&access_token_request)?;
+        let credential_offer = deserialize_optional_slice(&credential_offer)?;
+        let evaluate_access_token_request_options =
+            deserialize_optional_slice(&evaluate_access_token_request_options)?;
+
+        let response = match AccessToken::evaluate_access_token_request(
+            &access_token_request,
+            credential_offer,
+            evaluate_access_token_request_options,
+        )
+        .map_err(GrpcError::AccessTokenError)
+        {
+            Ok(response) => evaluate_access_token_request_response::Response::Success(
+                evaluate_access_token_request_response::Success {
+                    success_response: serialize_to_slice(response)?,
+                },
+            ),
+            Err(e) => evaluate_access_token_request_response::Response::Error(e.try_into()?),
+        };
+
+        Ok(Response::new(EvaluateAccessTokenRequestResponse {
             response: Some(response),
         }))
     }

@@ -9,6 +9,8 @@ service AccessTokenService {
       returns (CreateAccessTokenErrorResponseResponse);
   rpc CreateAccessTokenSuccessResponse(CreateAccessTokenSuccessResponseRequest)
       returns (CreateAccessTokenSuccessResponseResponse);
+  rpc EvaluateAccessTokenRequest(EvaluateAccessTokenRequestRequest)
+      returns (EvaluateAccessTokenRequestResponse);
 }
 
 message CreateAccessTokenErrorResponseRequest {
@@ -41,6 +43,23 @@ message CreateAccessTokenSuccessResponseRequest {
 }
 
 message CreateAccessTokenSuccessResponseResponse {
+  oneof response {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    bytes success_response = 1;
+  }
+}
+
+message EvaluateAccessTokenRequestRequest {
+  bytes access_token_request = 1;
+  optional bytes credential_offer = 2;
+  optional bytes evaluate_access_token_request_options = 3;
+}
+
+message EvaluateAccessTokenRequestResponse {
   oneof response {
     Success success = 1;
     Error error = 2;
