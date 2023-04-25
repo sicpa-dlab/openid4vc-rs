@@ -61,7 +61,7 @@ cargo run --bin client
 
 ### Pre Authorized Code Flow (as an issuer)
 
-```
+```ignore
 +--------------+   +-----------+                                    +-------------------+
 | User         |   |   Wallet  |                                    | Credential Issuer |
 +--------------+   +-----------+                                    +-------------------+
