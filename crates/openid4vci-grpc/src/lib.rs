@@ -1,8 +1,4 @@
-//! [`gRPC`](https://grpc.io) wrapper around the [`openid4vci`] crate.
-//!
-//! This exposes the main functionality from the [`openid4vci`] crate. Please refer to
-//! [client.rs](./client.rs) for a client example and [server.rs](./server.rs) for a server
-//! example.
+#![doc = include_str!("../../../README.md")]
 
 /// Credential issuer module which wraps [`openid4vci::credential_issuer`]
 mod credential_issuer;
