@@ -1,15 +1,4 @@
-//! [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html) implementation as a library.
-//!
-//! This library contains the following modules:
-//!
-//! ### Access Token
-//!
-//! The access token module contains the code to do the following:
-//!
-//! - evaluate requests
-//! - generate success responses
-//! - generate error responses
-//!
+#![doc = include_str!("../../../README.md")]
 
 /// Macros for the openid4vci-rs crate
 #[macro_use]
