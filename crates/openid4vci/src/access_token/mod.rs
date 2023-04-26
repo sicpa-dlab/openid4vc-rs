@@ -20,13 +20,13 @@ pub mod error;
 /// Module containing a structure for the error response
 pub mod error_response;
 
-/// Struct mapping for a `token error response` as defined in section 6.3 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.3)
+/// Struct mapping for a `token error response` as defined in section 6.3 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-6.3)
 pub type AccessTokenErrorResponse = ErrorResponse<AccessTokenErrorCode>;
 
 /// Token structure which contains methods to create responses and evaluate input
 pub struct AccessToken;
 
-/// Struct mapping for a `token success response` as defined in section 6.2 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.2)
+/// Struct mapping for a `token success response` as defined in section 6.2 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-6.2)
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct AccessTokenSuccessResponse {
     /// (OAuth2) The access token issued by the authorization server.
@@ -63,7 +63,7 @@ pub struct AccessTokenSuccessResponse {
 }
 
 /// Grant type for the access token request as specified in section 6.1 of the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.1)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-6.1)
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(tag = "grant_type")]
 pub enum GrantType {

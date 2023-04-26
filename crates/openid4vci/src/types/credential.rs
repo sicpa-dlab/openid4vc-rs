@@ -8,7 +8,7 @@ use crate::{
 };
 
 /// A struct mapping a `credential` type as defined in Appendix E in the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#format_profiles)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#format_profiles)
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(tag = "format")]
 pub enum CredentialFormatProfile {
@@ -153,7 +153,7 @@ impl Validatable for CredentialFormatProfile {
 
 /// Enum union type for a [`CredentialFormatProfile`] or [`String`]. This depends on the encoding
 /// format as specified in Appendix E of the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-format-profiles).
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#name-credential-format-profiles).
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum CredentialFormatProfileOrEncoded {
     /// [`CredentialFormatProfile`]

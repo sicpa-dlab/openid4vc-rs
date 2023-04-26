@@ -1,10 +1,8 @@
 # OpenID4VC
 
 This repository contains the code for an implementation of the [openid4vci
-specification
-1.0](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
-and the [openid4vp specification
-1.0](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html).
+specification 1.0 - Draft
+11](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html).
 
 > NOTE: The pre-authorized code flow is only supported right now.
 
@@ -16,7 +14,7 @@ these packages have their uses which are described below.
 ### `openid4vci`
 
 This package will be an implementation of the [openid4vci
-specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
+specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html)
 as a consumable library. This means that the library will not contain any
 endpoints as required by the specification. The functionality can be seen by
 the two following points:
@@ -92,7 +90,7 @@ cargo run --bin client
 ```
 
 _From section 3.5 of the [openid4vci
-specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-3.5)_
+specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-3.5)_
 
 In order to use this flow, the library has to be called in the following order
 (with your business logic in between):
@@ -119,9 +117,7 @@ Outside of the scope of this library
 When the `Wallet` comes back with an access token request, we have to evaluate
 it's validity.
 
-#### 4.1. `AccessToken::create_success_response` or
-
-`AccessToken::create_error_response`
+#### 4.1. `AccessToken::create_success_response` or `AccessToken::create_error_response`
 
 If the business logic or this library itself agrees with the access token
 request, a success response can be created which can be send to the `Wallet`.
@@ -144,9 +140,7 @@ DID Document must be supplied. This function returns some fields for any KMS to
 do a proof of possession check, the DID of where to issue the credential to and
 the credential itself without the filled-in data.
 
-#### 5.2. `CredentialIssuer::create_success_response` or
-
-`CredentialIssuer::create_error_response`
+#### 5.2. `CredentialIssuer::create_success_response` or `CredentialIssuer::create_error_response`
 
 If some business logic, or this library, determines that something went wrong,
 e.g. the proof of possession check did not work, the jwt is not valid anymore,

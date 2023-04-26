@@ -13,14 +13,14 @@ pub const OPENID4VCI_PROOF_TYPE: &str = "openid4vci-proof+jwt";
 pub const JWT_PROOF_TYPE: &str = "JWT";
 
 /// Struct mapping the `credential_request` as defined in section 7.2 of the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-10.2.3)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-10.2.3)
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CredentialRequest {
     /// Format of the Credential to be issued. This Credential format identifier determines further
     /// parameters required to determine the type and (optionally) the content of the credential to
     /// be issued. Credential Format Profiles consisting of the Credential format specific set of
     /// parameters are defined in Appendix E of the [openid4vci
-    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#format_profiles).
+    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#format_profiles).
     #[serde(flatten)]
     pub format: CredentialFormatProfile,
 
@@ -30,12 +30,12 @@ pub struct CredentialRequest {
     /// denoting the concrete proof type. This type determines the further claims in the proof
     /// object and its respective processing rules. Proof types are defined in Section 7.2.1 of the
     /// [openid4vci
-    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#proof_types).
+    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#proof_types).
     pub proof: Option<CredentialRequestProof>,
 }
 
 /// Struct mapping of `proof types` as defined in section 7.2.1 of the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#proof_types)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#proof_types)
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CredentialRequestProof {
     /// Type of proof used. MUST be of string `jwt`.
