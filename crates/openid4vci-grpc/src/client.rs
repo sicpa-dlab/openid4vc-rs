@@ -80,12 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     let response = response.into_inner();
 
-    let credential_offer: serde_json::Value =
-        serde_json::from_slice(&response.credential_offer).unwrap();
-    let credential_offer_url = String::from_utf8_lossy(&response.credential_offer_url);
-
-    println!("{credential_offer:#?}");
-    println!("{credential_offer_url:#?}");
+    println!("create_credential_offer: {:#?}", response.response);
 
     let request = tonic::Request::new(CreateAccessTokenErrorResponseRequest {
         error: "invalid_request".to_string(),
@@ -101,10 +96,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .into_inner();
 
-    let error_response: serde_json::Value =
-        serde_json::from_slice(&response.error_response).unwrap();
-
-    println!("{error_response:#?}");
+    println!(
+        "create_access_token_error_response: {:#?}",
+        response.response
+    );
 
     let credential_request = CredentialRequest {
         proof: Some(CredentialRequestProof {
@@ -126,7 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .into_inner();
 
-    println!("{response:#?}");
+    println!("pre_evaluate_credential_request: {:#?}", response.response);
 
     let request = tonic::Request::new(CreateAccessTokenSuccessResponseRequest {
         access_token: "access_token".to_string(),
@@ -145,10 +140,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .into_inner();
 
-    let success_response: serde_json::Value =
-        serde_json::from_slice(&response.success_response).unwrap();
-
-    println!("{success_response:#?}");
+    println!(
+        "create_access_token_success_response: {:#?}",
+        response.response
+    );
 
     let credential_request = CredentialRequest {
         proof: Some(CredentialRequestProof {
@@ -208,7 +203,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         credential_request,
         did_document: Some(did_document),
         issuer_metadata,
-        credential_offer: Some(serde_json::to_vec(&credential_offer).unwrap()),
+        credential_offer: None,
         authorization_server_metadata: None,
     });
     let response = credential_issuer_client
@@ -216,7 +211,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .into_inner();
 
-    println!("{response:#?}");
+    println!("evaluate_credential_request: {:#?}", response.response);
 
     Ok(())
 }

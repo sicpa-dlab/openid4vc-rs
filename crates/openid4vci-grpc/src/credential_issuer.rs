@@ -1,9 +1,12 @@
-use crate::error::{GrpcError, Result};
+use crate::error::{GrpcError, GrpcResult};
 use crate::grpc_openid4vci::credential_issuer_service_server::CredentialIssuerService;
 use crate::grpc_openid4vci::{
-    CreateCredentialErrorResponseRequest, CreateCredentialErrorResponseResponse,
-    CreateCredentialSuccessResponseRequest, CreateCredentialSuccessResponseResponse,
-    PreEvaluateCredentialRequestRequest, PreEvaluateCredentialRequestResponse,
+    create_credential_error_response_response, create_credential_offer_response,
+    create_credential_success_response_response, evaluate_credential_request_response,
+    pre_evaluate_credential_request_response, CreateCredentialErrorResponseRequest,
+    CreateCredentialErrorResponseResponse, CreateCredentialSuccessResponseRequest,
+    CreateCredentialSuccessResponseResponse, PreEvaluateCredentialRequestRequest,
+    PreEvaluateCredentialRequestResponse,
 };
 use crate::utils::{
     deserialize_optional_slice, deserialize_slice, serialize_to_optional_slice, serialize_to_slice,
@@ -16,8 +19,8 @@ use crate::{
 use openid4vci::credential_issuer::error::CredentialIssuerError;
 use openid4vci::credential_issuer::error_code::CredentialIssuerErrorCode;
 use openid4vci::credential_issuer::{
-    AuthorizedCodeFlow, CNonce, CredentialIssuer, CredentialIssuerEvaluateRequestResponse,
-    CredentialOffer, CredentialOrAcceptanceToken, CredentialOrIds, PreAuthorizedCodeFlow,
+    AuthorizedCodeFlow, CNonce, CredentialIssuer, CredentialOffer, CredentialOrAcceptanceToken,
+    CredentialOrIds, PreAuthorizedCodeFlow,
 };
 use openid4vci::types::authorization_server_metadata::AuthorizationServerMetadata;
 use openid4vci::types::credential_issuer_metadata::CredentialIssuerMetadata;
@@ -36,7 +39,7 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
     async fn create_credential_offer(
         &self,
         request: Request<CreateCredentialOfferRequest>,
-    ) -> Result<Response<CreateCredentialOfferResponse>> {
+    ) -> GrpcResult<Response<CreateCredentialOfferResponse>> {
         let CreateCredentialOfferRequest {
             issuer_metadata,
             authorized_code_flow,
@@ -55,45 +58,55 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
 
         let credentials = deserialize_slice::<CredentialOrIds>(&credentials)?;
 
-        let (credential_offer, credential_offer_url) = CredentialIssuer::create_offer(
+        let response = match CredentialIssuer::create_offer(
             &issuer_metadata,
             credentials,
             &credential_offer_endpoint,
             &authorized_code_flow,
             &pre_authorized_code_flow,
         )
-        .map_err(GrpcError::CredentialIssuerError)?;
-
-        let credential_offer = serialize_to_slice(credential_offer)?;
-        let credential_offer_url = credential_offer_url.as_bytes().to_vec();
-        let response = CreateCredentialOfferResponse {
-            credential_offer,
-            credential_offer_url,
+        .map_err(GrpcError::CredentialIssuerError)
+        {
+            Ok(response) => create_credential_offer_response::Response::Success(
+                create_credential_offer_response::Success {
+                    credential_offer: serialize_to_slice(response.0)?,
+                    credential_offer_url: response.1,
+                },
+            ),
+            Err(e) => create_credential_offer_response::Response::Error(e.try_into()?),
         };
 
-        Ok(Response::new(response))
+        Ok(Response::new(CreateCredentialOfferResponse {
+            response: Some(response),
+        }))
     }
 
     async fn pre_evaluate_credential_request(
         &self,
         request: Request<PreEvaluateCredentialRequestRequest>,
-    ) -> Result<Response<PreEvaluateCredentialRequestResponse>> {
+    ) -> GrpcResult<Response<PreEvaluateCredentialRequestResponse>> {
         let PreEvaluateCredentialRequestRequest { credential_request } = request.into_inner();
 
         let credential_request = deserialize_slice::<CredentialRequest>(&credential_request)?;
 
-        let response = CredentialIssuer::pre_evaluate_credential_request(&credential_request)
-            .map_err(GrpcError::CredentialIssuerError)?;
+        let response = match CredentialIssuer::pre_evaluate_credential_request(&credential_request)
+            .map_err(GrpcError::CredentialIssuerError)
+        {
+            Ok(response) => pre_evaluate_credential_request_response::Response::Success(
+                pre_evaluate_credential_request_response::Success { did: response.did },
+            ),
+            Err(e) => pre_evaluate_credential_request_response::Response::Error(e.try_into()?),
+        };
 
-        let response = PreEvaluateCredentialRequestResponse { did: response.did };
-
-        Ok(Response::new(response))
+        Ok(Response::new(PreEvaluateCredentialRequestResponse {
+            response: Some(response),
+        }))
     }
 
     async fn evaluate_credential_request(
         &self,
         request: Request<EvaluateCredentialRequestRequest>,
-    ) -> Result<Response<EvaluateCredentialRequestResponse>> {
+    ) -> GrpcResult<Response<EvaluateCredentialRequestResponse>> {
         let EvaluateCredentialRequestRequest {
             issuer_metadata,
             credential_request,
@@ -114,28 +127,32 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
 
         let did_document = deserialize_optional_slice::<Document>(&did_document)?;
 
-        let CredentialIssuerEvaluateRequestResponse {
-            proof_of_possession,
-        } = CredentialIssuer::evaluate_credential_request(
+        let response = match CredentialIssuer::evaluate_credential_request(
             &issuer_metadata,
             &credential_request,
             credential_offer.as_ref(),
             authorization_server_metadata.as_ref(),
             did_document.as_ref(),
         )
-        .map_err(GrpcError::CredentialIssuerError)?;
-
-        let response = EvaluateCredentialRequestResponse {
-            proof_of_possession: serialize_to_optional_slice(proof_of_possession)?,
+        .map_err(GrpcError::CredentialIssuerError)
+        {
+            Ok(response) => evaluate_credential_request_response::Response::Success(
+                evaluate_credential_request_response::Success {
+                    proof_of_possession: serialize_to_optional_slice(response.proof_of_possession)?,
+                },
+            ),
+            Err(e) => evaluate_credential_request_response::Response::Error(e.try_into()?),
         };
 
-        Ok(Response::new(response))
+        Ok(Response::new(EvaluateCredentialRequestResponse {
+            response: Some(response),
+        }))
     }
 
     async fn create_credential_success_response(
         &self,
         request: Request<CreateCredentialSuccessResponseRequest>,
-    ) -> Result<Response<CreateCredentialSuccessResponseResponse>> {
+    ) -> GrpcResult<Response<CreateCredentialSuccessResponseResponse>> {
         let CreateCredentialSuccessResponseRequest {
             credential_request,
             credential,
@@ -163,24 +180,30 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
             c_nonce_expires_in,
         });
 
-        let response = CredentialIssuer::create_credential_success_response(
+        let response = match CredentialIssuer::create_credential_success_response(
             &credential_request,
             credential_or_acceptance_token,
             c_nonce,
         )
-        .map_err(GrpcError::CredentialIssuerError)?;
-
-        let response = CreateCredentialSuccessResponseResponse {
-            success_response: serialize_to_slice(response)?,
+        .map_err(GrpcError::CredentialIssuerError)
+        {
+            Ok(response) => create_credential_success_response_response::Response::Success(
+                create_credential_success_response_response::Success {
+                    success_response: serialize_to_slice(response)?,
+                },
+            ),
+            Err(e) => create_credential_success_response_response::Response::Error(e.try_into()?),
         };
 
-        Ok(Response::new(response))
+        Ok(Response::new(CreateCredentialSuccessResponseResponse {
+            response: Some(response),
+        }))
     }
 
     async fn create_credential_error_response(
         &self,
         request: Request<CreateCredentialErrorResponseRequest>,
-    ) -> Result<Response<CreateCredentialErrorResponseResponse>> {
+    ) -> GrpcResult<Response<CreateCredentialErrorResponseResponse>> {
         let CreateCredentialErrorResponseRequest {
             error,
             error_description,
@@ -192,18 +215,25 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
             CredentialIssuerErrorCode::try_from(error).map_err(GrpcError::ValidationError)?;
         let error_additional_details = deserialize_optional_slice(&error_additional_details)?;
 
-        let error_response = CredentialIssuer::create_credential_error_response(
+        let response = match CredentialIssuer::create_credential_error_response(
             &error,
             error_description,
             error_uri,
             error_additional_details,
         )
-        .map_err(GrpcError::CredentialIssuerError)?;
+        .map_err(GrpcError::CredentialIssuerError)
+        {
+            Ok(response) => create_credential_error_response_response::Response::Success(
+                create_credential_error_response_response::Success {
+                    error_response: serialize_to_slice(response)?,
+                },
+            ),
+            Err(e) => create_credential_error_response_response::Response::Error(e.try_into()?),
+        };
 
-        let error_response = serialize_to_slice(error_response)?;
-        let response = CreateCredentialErrorResponseResponse { error_response };
-
-        Ok(Response::new(response))
+        Ok(Response::new(CreateCredentialErrorResponseResponse {
+            response: Some(response),
+        }))
     }
 }
 
@@ -212,6 +242,8 @@ mod credential_issuer_tests {
     use openid4vci::types::{
         credential::CredentialFormatProfile, credential_request::CredentialRequestProof,
     };
+
+    use crate::grpc_openid4vci::Error;
 
     use super::*;
 
@@ -348,21 +380,28 @@ mod credential_issuer_tests {
             credential_offer_endpoint: None,
         };
 
-        // A bit of a hacky test as we nest some of the errors and extracting the serialized
-        // message is not the intended behaviour
         let message = issuer
             .create_credential_offer(Request::new(message))
             .await
-            .unwrap_err();
+            .expect("Unable to create offer with error")
+            .into_inner();
 
-        let message = message.message();
-        let expected =
-            openid4vci::credential_issuer::error::CredentialIssuerError::AuthorizedFlowNotSupported;
-        assert_eq!(message.to_string(), expected.information().to_string());
+        let expected = create_credential_offer_response::Response::Error(Error {
+            code: 102,
+            name: "AuthorizedFlowNotSupported".to_owned(),
+            description: "The Authorized flow is currently not supported".to_owned(),
+            additional_information: None,
+        });
+
+        assert_eq!(message.response, Some(expected));
     }
 
     #[tokio::test]
     async fn should_pre_evaluate_request() {
+        let expected = pre_evaluate_credential_request_response::Success {
+            did: Some("did:example:ebfeb1f712ebc6f1c276e12ec21/keys/1".to_owned()),
+        };
+
         let issuer = GrpcCredentialIssuer::default();
 
         let credential_request = CredentialRequest {
@@ -390,8 +429,10 @@ mod credential_issuer_tests {
             .into_inner();
 
         assert_eq!(
-            response.did,
-            Some("did:example:ebfeb1f712ebc6f1c276e12ec21/keys/1".to_owned())
+            response.response,
+            Some(pre_evaluate_credential_request_response::Response::Success(
+                expected
+            ))
         );
     }
 

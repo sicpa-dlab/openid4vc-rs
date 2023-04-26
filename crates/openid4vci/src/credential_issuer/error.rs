@@ -65,7 +65,7 @@ pub enum CredentialIssuerError {
     CredentialAndAcceptanceTokenSupplied = 107,
 }
 
-error_impl!(CredentialIssuerError);
+error_impl!(CredentialIssuerError, CredentialIssuerResult);
 
 #[cfg(test)]
 mod credential_issuer_error_tests {
@@ -86,9 +86,9 @@ mod credential_issuer_error_tests {
         assert!(error_information.description == "some error");
         assert!(
             error_information.additional_information
-                == serde_json::json!({
+                == Some(serde_json::json!({
                     "validation_message": "some error"
-                })
+                }))
         );
     }
 
@@ -99,7 +99,7 @@ mod credential_issuer_error_tests {
         assert!(error_information.code == 102);
         assert!(error_information.name == "AuthorizedFlowNotSupported");
         assert!(error_information.description == "The Authorized flow is currently not supported");
-        assert!(error_information.additional_information == serde_json::Value::Null);
+        assert!(error_information.additional_information == Some(serde_json::Value::Null));
     }
 
     #[test]
@@ -114,9 +114,9 @@ mod credential_issuer_error_tests {
         assert!(error_information.description == "The id `cred_id_one` does not refer to a credential format inside the issuer metadata");
         assert!(
             error_information.additional_information
-                == serde_json::json!({
+                == Some(serde_json::json!({
                     "id": "cred_id_one"
-                })
+                }))
         );
     }
 
@@ -132,9 +132,9 @@ mod credential_issuer_error_tests {
         assert!(error_information.description == "Could not url-encode the credential");
         assert!(
             error_information.additional_information
-                == serde_json::json!({
+                == Some(serde_json::json!({
                     "error_message": "invalid encoding"
-                })
+                }))
         );
     }
 }

@@ -126,4 +126,4 @@ pub enum JwtError {
 /// JWT result used for the [`JwtError`]
 pub type JwtResult<T> = std::result::Result<T, JwtError>;
 
-error_impl!(JwtError);
+error_impl!(JwtError, JwtResult);

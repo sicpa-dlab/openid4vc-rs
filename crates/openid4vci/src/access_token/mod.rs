@@ -1,10 +1,17 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::credential_issuer::AuthorizedCodeFlow;
+use crate::credential_issuer::CredentialOffer;
+use crate::credential_issuer::CredentialOfferGrants;
+use crate::credential_issuer::PreAuthorizedCodeFlow;
 use crate::error_response::ErrorResponse;
 use crate::types::token_type::AccessTokenType;
+use crate::validate::Validatable;
+use crate::validate::ValidationError;
 
-use self::error::Result;
+use self::error::AccessTokenError;
+use self::error::AccessTokenResult;
 use self::error_response::AccessTokenErrorCode;
 
 /// Error module for the access token module
@@ -20,7 +27,7 @@ pub type AccessTokenErrorResponse = ErrorResponse<AccessTokenErrorCode>;
 pub struct AccessToken;
 
 /// Struct mapping for a `token success response` as defined in section 6.2 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.2)
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct AccessTokenSuccessResponse {
     /// (OAuth2) The access token issued by the authorization server.
     pub access_token: String,
@@ -55,7 +62,193 @@ pub struct AccessTokenSuccessResponse {
     pub interval: Option<u64>,
 }
 
+/// Grant type for the access token request as specified in section 6.1 of the [openid4vci
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.1)
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[serde(tag = "grant_type")]
+pub enum GrantType {
+    /// indicator for authorized code flow
+    #[serde(rename = "authorization_code")]
+    AuthorizedCodeFlow,
+    /// indicator for pre-authorized code flow
+    #[serde(rename = "urn:ietf:params:oauth:grant-type:pre-authorized_code")]
+    PreAuthorizedCodeFlow {
+        /// The code representing the authorization to obtain Credentials of a certain type. This
+        /// parameter is required if the grant_type is
+        /// urn:ietf:params:oauth:grant-type:pre-authorized_code.
+        pre_authorized_code: String,
+
+        /// String value containing a user PIN. This value MUST be present if `user_pin_required`
+        /// was set to true in the [`CredentialOffer`]. The string value MUST consist of maximum 8
+        /// numeric characters (the numbers 0 - 9). This parameter MUST only be used, if the
+        /// grant_type is `urn:ietf:params:oauth:grant-type:pre-authorized_code`.
+        user_pin: Option<u64>,
+    },
+}
+
+impl Validatable for GrantType {
+    fn validate(&self) -> Result<(), crate::validate::ValidationError> {
+        match self {
+            GrantType::AuthorizedCodeFlow => Ok(()),
+            GrantType::PreAuthorizedCodeFlow { user_pin, .. } => {
+                if let Some(user_pin) = user_pin {
+                    let max = 8;
+                    let length = user_pin.checked_ilog10().unwrap_or_default();
+                    if length > max {
+                        return Err(ValidationError::Any {
+                            validation_message: format!(
+                                "user pin exeeded length. Maximum is {max}, supplied is {length}"
+                            ),
+                        });
+                    }
+                }
+
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Access token request structure that contains metadata about the request
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct AccessTokenRequest {
+    /// Grant type for the request
+    grant_type: GrantType,
+}
+
+impl Validatable for AccessTokenRequest {
+    fn validate(&self) -> Result<(), ValidationError> {
+        self.grant_type.validate()?;
+
+        Ok(())
+    }
+}
+
+/// Additional options for validation for the `access_token` request
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct EvaluateAccessTokenRequestOptions {
+    user_code: Option<u64>,
+}
+
 impl AccessToken {
+    /// Evaluate an access token request
+    ///
+    /// # Errors
+    ///
+    /// - When the authorized code flow is used
+    /// - When the `user_pin` has more than 8 characters
+    /// - When the `grant_type` of the [`AccessTokenRequest`] does not match the `grant_type` of
+    ///   the [`CredentialOffer`]
+    pub fn evaluate_access_token_request(
+        access_token_request: &AccessTokenRequest,
+        credential_offer: Option<CredentialOffer>,
+        evaluate_access_token_request_options: Option<EvaluateAccessTokenRequestOptions>,
+    ) -> AccessTokenResult<()> {
+        access_token_request.validate()?;
+
+        if access_token_request.grant_type == GrantType::AuthorizedCodeFlow {
+            return Err(AccessTokenError::AuthorizedFlowNotSupported);
+        };
+
+        let validate_authorized_code_flow =
+            |_: AuthorizedCodeFlow, grant_type: &GrantType| match &grant_type {
+                GrantType::AuthorizedCodeFlow => Ok(()),
+                GrantType::PreAuthorizedCodeFlow { .. } => {
+                    Err(AccessTokenError::InvalidGrantType {
+                        requested_grant_type: "pre_authorized_code_flow".to_owned(),
+                        accepted_grant_type: vec!["authorized_code_flow".to_owned()],
+                    })
+                }
+            };
+
+        let validate_pre_authorized_code_flow =
+            |p: PreAuthorizedCodeFlow, grant_type: &GrantType| match &grant_type {
+                GrantType::AuthorizedCodeFlow => Err(AccessTokenError::InvalidGrantType {
+                    requested_grant_type: "authorized_code_flow".to_owned(),
+                    accepted_grant_type: vec!["pre_authorized_code_flow".to_owned()],
+                }),
+                GrantType::PreAuthorizedCodeFlow {
+                    pre_authorized_code,
+                    user_pin,
+                } => {
+                    if let Some(user_pin) = user_pin {
+                        let evaluate_access_token_request_options =
+                            evaluate_access_token_request_options.ok_or(
+                                AccessTokenError::OptionsAreRequiredForEvaluation {
+                                    reason: "user_pin was supplied in the access token request"
+                                        .to_owned(),
+                                },
+                            )?;
+
+                        let user_code_from_options = evaluate_access_token_request_options
+                            .user_code
+                            .ok_or(AccessTokenError::OptionsAreRequiredForEvaluation {
+                                reason: "user_pin was supplied in the access token request"
+                                    .to_owned(),
+                            })?;
+
+                        if user_pin != &user_code_from_options {
+                            return Err(AccessTokenError::UserPinMismatch);
+                        }
+                    };
+
+                    let should_pin_be_supplied = p.user_pin_required.unwrap_or_default();
+                    let does_code_match = p.code == *pre_authorized_code;
+                    let is_valid = user_pin.is_some() == should_pin_be_supplied && does_code_match;
+
+                    if is_valid {
+                        Ok(())
+                    } else {
+                        Err(AccessTokenError::InvalidPreAuthorizedCodeFlowValues {
+                            should_pin_be_supplied,
+                            does_code_match,
+                        })
+                    }
+                }
+            };
+
+        if let Some(credential_offer) = credential_offer {
+            let CredentialOfferGrants {
+                authorized_code_flow,
+                pre_authorized_code_flow,
+            } = credential_offer.grants;
+
+            match (authorized_code_flow, pre_authorized_code_flow) {
+                (None, None) => Err(AccessTokenError::NoFlowSupportedInCredentialOffer),
+                (None, Some(pre_authorized_code_flow)) => validate_pre_authorized_code_flow(
+                    pre_authorized_code_flow,
+                    &access_token_request.grant_type,
+                ),
+                (Some(authorized_code_flow), None) => validate_authorized_code_flow(
+                    authorized_code_flow,
+                    &access_token_request.grant_type,
+                ),
+                (Some(authorized_code_flow), Some(pre_authorized_code_flow)) => {
+                    let is_authorized_valid = validate_authorized_code_flow(
+                        authorized_code_flow,
+                        &access_token_request.grant_type,
+                    );
+                    let is_pre_authorized_valid = validate_pre_authorized_code_flow(
+                        pre_authorized_code_flow,
+                        &access_token_request.grant_type,
+                    );
+
+                    match (is_authorized_valid, is_pre_authorized_valid) {
+                        (Err(authorized_error), Err(pre_authorized_error)) => Err(
+                            AccessTokenError::InvalidAuthorizedAndPreAuthorizedCodeFlow {
+                                authorized_error: Box::new(authorized_error),
+                                pre_authorized_error: Box::new(pre_authorized_error),
+                            },
+                        ),
+                        _ => Ok(()),
+                    }
+                }
+            }
+        } else {
+            Err(AccessTokenError::CredentialOfferMustBeSupplied)
+        }
+    }
+
     /// Create an error response
     ///
     /// # Errors
@@ -66,7 +259,7 @@ impl AccessToken {
         error_description: Option<String>,
         error_uri: Option<String>,
         error_additional_details: Option<serde_json::Value>,
-    ) -> Result<AccessTokenErrorResponse> {
+    ) -> AccessTokenResult<AccessTokenErrorResponse> {
         let error_response = AccessTokenErrorResponse {
             error,
             error_description,
@@ -92,7 +285,7 @@ impl AccessToken {
         c_nonce_expires_in: Option<u64>,
         authorization_pending: Option<bool>,
         interval: Option<u64>,
-    ) -> Result<AccessTokenSuccessResponse> {
+    ) -> AccessTokenResult<AccessTokenSuccessResponse> {
         let token_response = AccessTokenSuccessResponse {
             access_token,
             token_type,
@@ -109,12 +302,331 @@ impl AccessToken {
 }
 
 #[cfg(test)]
-mod test_access_token {
+mod test_access_token_evaluate_request {
+    use crate::credential_issuer::{AuthorizedCodeFlow, CredentialOrIds, PreAuthorizedCodeFlow};
+
+    use super::*;
+
+    #[test]
+    fn should_evaluate_access_token_request() {
+        let access_token_request = AccessTokenRequest {
+            grant_type: GrantType::PreAuthorizedCodeFlow {
+                pre_authorized_code: "abc".to_owned(),
+                user_pin: Some(123213),
+            },
+        };
+        let credential_offer = CredentialOffer {
+            credential_issuer: "me".to_owned(),
+            credentials: CredentialOrIds::new(vec![]),
+            grants: CredentialOfferGrants {
+                authorized_code_flow: Some(AuthorizedCodeFlow { issuer_state: None }),
+                pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
+                    code: "abc".to_owned(),
+                    user_pin_required: Some(true),
+                }),
+            },
+        };
+
+        let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
+            user_code: Some(123213),
+        };
+
+        let output = AccessToken::evaluate_access_token_request(
+            &access_token_request,
+            Some(credential_offer),
+            Some(evaluate_access_token_request_options),
+        );
+
+        println!("{output:?}");
+
+        assert!(output.is_ok());
+    }
+
+    #[test]
+    fn should_not_evaluate_access_token_request_without_credential_offer() {
+        let access_token_request = AccessTokenRequest {
+            grant_type: GrantType::PreAuthorizedCodeFlow {
+                pre_authorized_code: "0123".to_owned(),
+                user_pin: Some(123213),
+            },
+        };
+
+        let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
+            user_code: Some(123213),
+        };
+
+        let output = AccessToken::evaluate_access_token_request(
+            &access_token_request,
+            None,
+            Some(evaluate_access_token_request_options),
+        );
+
+        assert_eq!(output, Err(AccessTokenError::CredentialOfferMustBeSupplied));
+    }
+
+    #[test]
+    fn should_not_evaluate_access_token_request_with_pin_mismatch() {
+        let access_token_request = AccessTokenRequest {
+            grant_type: GrantType::PreAuthorizedCodeFlow {
+                pre_authorized_code: "0123".to_owned(),
+                user_pin: Some(123213),
+            },
+        };
+        let credential_offer = CredentialOffer {
+            credential_issuer: "me".to_owned(),
+            credentials: CredentialOrIds::new(vec![]),
+            grants: CredentialOfferGrants {
+                authorized_code_flow: None,
+                pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
+                    code: "abc".to_owned(),
+                    user_pin_required: Some(true),
+                }),
+            },
+        };
+
+        let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
+            user_code: Some(111),
+        };
+
+        let output = AccessToken::evaluate_access_token_request(
+            &access_token_request,
+            Some(credential_offer),
+            Some(evaluate_access_token_request_options),
+        );
+
+        assert_eq!(output, Err(AccessTokenError::UserPinMismatch));
+    }
+
+    #[test]
+    fn should_not_evaluate_access_token_request_with_pre_authorized_code_mismatch() {
+        let access_token_request = AccessTokenRequest {
+            grant_type: GrantType::PreAuthorizedCodeFlow {
+                pre_authorized_code: "0123".to_owned(),
+                user_pin: Some(123213),
+            },
+        };
+        let credential_offer = CredentialOffer {
+            credential_issuer: "me".to_owned(),
+            credentials: CredentialOrIds::new(vec![]),
+            grants: CredentialOfferGrants {
+                authorized_code_flow: None,
+                pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
+                    code: "abc".to_owned(),
+                    user_pin_required: Some(true),
+                }),
+            },
+        };
+
+        let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
+            user_code: Some(123213),
+        };
+
+        let output = AccessToken::evaluate_access_token_request(
+            &access_token_request,
+            Some(credential_offer),
+            Some(evaluate_access_token_request_options),
+        );
+
+        assert!(matches!(
+            output,
+            Err(AccessTokenError::InvalidPreAuthorizedCodeFlowValues {
+                does_code_match: false,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn should_evaluate_access_token_with_both_grant_types_in_credential_offer() {
+        let access_token_request = AccessTokenRequest {
+            grant_type: GrantType::PreAuthorizedCodeFlow {
+                pre_authorized_code: "abc".to_owned(),
+                user_pin: None,
+            },
+        };
+
+        let credential_offer = CredentialOffer {
+            credential_issuer: "me".to_owned(),
+            credentials: CredentialOrIds::new(vec![]),
+            grants: CredentialOfferGrants {
+                authorized_code_flow: Some(AuthorizedCodeFlow { issuer_state: None }),
+                pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
+                    code: "abc".to_owned(),
+                    user_pin_required: None,
+                }),
+            },
+        };
+
+        let evaluate_access_token_request_options = None;
+
+        let output = AccessToken::evaluate_access_token_request(
+            &access_token_request,
+            Some(credential_offer),
+            evaluate_access_token_request_options,
+        );
+
+        assert!(output.is_ok());
+    }
+
+    #[test]
+    fn should_evaluate_access_token_with_matching_grant_type_in_credential_offer() {
+        let access_token_request = AccessTokenRequest {
+            grant_type: GrantType::PreAuthorizedCodeFlow {
+                pre_authorized_code: "abc".to_owned(),
+                user_pin: Some(123),
+            },
+        };
+
+        let credential_offer = CredentialOffer {
+            credential_issuer: "me".to_owned(),
+            credentials: CredentialOrIds::new(vec![]),
+            grants: CredentialOfferGrants {
+                authorized_code_flow: None,
+                pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
+                    code: "abc".to_owned(),
+                    user_pin_required: Some(true),
+                }),
+            },
+        };
+
+        let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
+            user_code: Some(123),
+        };
+
+        let output = AccessToken::evaluate_access_token_request(
+            &access_token_request,
+            Some(credential_offer),
+            Some(evaluate_access_token_request_options),
+        );
+
+        assert!(output.is_ok());
+    }
+
+    #[test]
+    fn should_not_evaluate_access_token_with_required_pin_but_none_supplied() {
+        let access_token_request = AccessTokenRequest {
+            grant_type: GrantType::PreAuthorizedCodeFlow {
+                pre_authorized_code: "abc".to_owned(),
+                user_pin: None,
+            },
+        };
+
+        let credential_offer = CredentialOffer {
+            credential_issuer: "me".to_owned(),
+            credentials: CredentialOrIds::new(vec![]),
+            grants: CredentialOfferGrants {
+                authorized_code_flow: None,
+                pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
+                    code: "abc".to_owned(),
+                    user_pin_required: Some(true),
+                }),
+            },
+        };
+
+        let evaluate_access_token_request_options = None;
+
+        let output = AccessToken::evaluate_access_token_request(
+            &access_token_request,
+            Some(credential_offer),
+            evaluate_access_token_request_options,
+        );
+
+        assert_eq!(
+            output,
+            Err(AccessTokenError::InvalidPreAuthorizedCodeFlowValues {
+                should_pin_be_supplied: true,
+                does_code_match: true
+            })
+        );
+    }
+
+    #[test]
+    fn should_not_evaluate_access_token_request_when_user_pin_is_invalid() {
+        let access_token_request = AccessTokenRequest {
+            grant_type: GrantType::PreAuthorizedCodeFlow {
+                pre_authorized_code: "0123".to_owned(),
+                user_pin: Some(11111111111),
+            },
+        };
+
+        let credential_offer = None;
+
+        let evaluate_access_token_request_options = None;
+
+        let output = AccessToken::evaluate_access_token_request(
+            &access_token_request,
+            credential_offer,
+            evaluate_access_token_request_options,
+        );
+
+        assert_eq!(
+            output,
+            Err(AccessTokenError::ValidationError(ValidationError::Any {
+                validation_message: "user pin exeeded length. Maximum is 8, supplied is 10"
+                    .to_owned()
+            }))
+        );
+    }
+
+    #[test]
+    fn should_not_evaluate_access_token_request_when_authorized_code_flow_is_used() {
+        let access_token_request = AccessTokenRequest {
+            grant_type: GrantType::AuthorizedCodeFlow,
+        };
+
+        let credential_offer = None;
+
+        let evaluate_access_token_request_options = None;
+
+        let output = AccessToken::evaluate_access_token_request(
+            &access_token_request,
+            credential_offer,
+            evaluate_access_token_request_options,
+        );
+
+        assert_eq!(output, Err(AccessTokenError::AuthorizedFlowNotSupported));
+    }
+
+    #[test]
+    fn should_not_evaluate_access_token_request_when_grant_type_in_offer_does_not_match() {
+        let access_token_request = AccessTokenRequest {
+            grant_type: GrantType::PreAuthorizedCodeFlow {
+                pre_authorized_code: "abc".to_owned(),
+                user_pin: None,
+            },
+        };
+
+        let credential_offer = CredentialOffer {
+            credential_issuer: "me".to_owned(),
+            credentials: CredentialOrIds::new(vec![]),
+            grants: CredentialOfferGrants {
+                authorized_code_flow: Some(AuthorizedCodeFlow { issuer_state: None }),
+                pre_authorized_code_flow: None,
+            },
+        };
+
+        let evaluate_access_token_request_options = None;
+
+        let output = AccessToken::evaluate_access_token_request(
+            &access_token_request,
+            Some(credential_offer),
+            evaluate_access_token_request_options,
+        );
+
+        assert!(matches!(
+            output,
+            Err(AccessTokenError::InvalidGrantType { .. })
+        ));
+    }
+}
+
+#[cfg(test)]
+mod test_access_token_error_response {
     use super::*;
 
     #[test]
     fn error_response() {
-        let error_response = AccessToken::create_error_response(
+        let error_response = AccessToken::create_access_token_error_response(
             AccessTokenErrorCode::InvalidRequest,
             Some("error description".to_owned()),
             Some("error uri".to_owned()),
@@ -129,20 +641,26 @@ mod test_access_token {
         );
         assert_eq!(error_response.error_uri, Some("error uri".to_string()));
     }
+}
+
+#[cfg(test)]
+mod test_access_token_success_response {
+    use super::*;
 
     #[test]
     fn success_response() {
-        let success_response: AccessTokenSuccessResponse = AccessToken::create_success_response(
-            "Hello".to_string(),
-            AccessTokenType::Bearer,
-            Some(3600),
-            Some("scope".to_string()),
-            Some("c_nonce".to_string()),
-            Some(3600),
-            Some(true),
-            Some(5),
-        )
-        .expect("Unable to create access token success response");
+        let success_response: AccessTokenSuccessResponse =
+            AccessToken::create_access_token_success_response(
+                "Hello".to_string(),
+                AccessTokenType::Bearer,
+                Some(3600),
+                Some("scope".to_string()),
+                Some("c_nonce".to_string()),
+                Some(3600),
+                Some(true),
+                Some(5),
+            )
+            .expect("Unable to create access token success response");
 
         assert_eq!(success_response.access_token, "Hello".to_string());
         assert_eq!(success_response.token_type, AccessTokenType::Bearer);

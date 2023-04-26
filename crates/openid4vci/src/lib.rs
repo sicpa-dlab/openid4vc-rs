@@ -33,3 +33,6 @@ mod base;
 
 /// Module for a generic error response
 mod error_response;
+
+/// Module containing a generic return type for every function
+pub mod return_object;
