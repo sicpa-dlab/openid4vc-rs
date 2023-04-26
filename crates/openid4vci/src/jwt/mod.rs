@@ -64,7 +64,7 @@ pub enum ProofJwtAlgorithm {
 }
 
 /// Struct mapping of `jwt` in the `proof types` as defined in section 7.2.1 of the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#proof_types)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#proof_types)
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProofJwt {
     /// JOSE header for a `jwt` proof
@@ -273,7 +273,7 @@ impl ProofJwt {
 }
 
 /// Struct mapping of `jwt header` in the `proof types` as defined in section 7.2.1 of the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#proof_types)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#proof_types)
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProofJwtHeader {
     /// MUST be openid4vci-proof+jwt, which explicitly types the proof JWT as recommended in
@@ -451,7 +451,7 @@ pub enum ProofJwtAdditionalHeader {
 }
 
 /// Struct mapping of `jwt body` in the `proof types` as defined in section 7.2.1 of the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#proof_types)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#proof_types)
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProofJwtBody {
     /// The value of this claim MUST be the client_id of the client making the credential request.
@@ -544,12 +544,12 @@ mod test_jwt {
     #[test]
     fn should_create_structure_from_valid_jwt() {
         // unofficial test vector:
-        // https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-7.2.1-5
+        // https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-7.2.1-5
         let jwt = "eyJraWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxYzI3NmUxMmVjMjEva2V5cy8xIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9";
 
         let jwt = ProofJwt::from_str(jwt).expect("Unable to decode jwt");
 
-        // result of encoding: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-7.2.1-7
+        // result of encoding: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-7.2.1-7
         assert_eq!(jwt.header.typ, "JWT");
         assert_eq!(jwt.header.alg, ProofJwtAlgorithm::ES256);
         assert_eq!(

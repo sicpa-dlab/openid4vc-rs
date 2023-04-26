@@ -4,7 +4,7 @@ use serde::Serialize;
 use crate::validate::ValidationError;
 
 /// Enum containing error codes for an access token request. This is a direct implementation of section
-/// 6.3 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-6.3).
+/// 6.3 of the [openid4vci specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-6.3).
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum AccessTokenErrorCode {
     /// `invalid_request`

@@ -16,7 +16,7 @@ pub enum GrpcError {
     #[error(transparent)]
     CredentialIssuerError(#[from] CredentialIssuerError),
 
-    /// [`AccessToken`] wrapper
+    /// [`AccessTokenError`] wrapper
     #[error(transparent)]
     AccessTokenError(#[from] AccessTokenError),
 

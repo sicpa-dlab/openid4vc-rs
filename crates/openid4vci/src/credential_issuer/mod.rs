@@ -24,7 +24,7 @@ pub mod error_code;
 
 /// Struct mapping for a `credential error response` as defined in section 7.3.1 of the
 /// [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-7.3.1)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-7.3.1)
 pub type CredentialIssuerErrorResponse = ErrorResponse<CredentialIssuerErrorCode>;
 
 /// Enum that defines a type which may contain a [`CredentialFormatProfile`] type or a string
@@ -163,7 +163,7 @@ pub struct PreAuthorizedCodeFlow {
 }
 
 /// Struct mapping the `credential offer parameters` as defined in section 4.1.1 of the [openid4vci
-/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-4.1.1)
+/// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-4.1.1)
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
 pub struct CredentialOffer {
     /// The URL of the Credential Issuer, the Wallet is requested to obtain one or more Credentials
@@ -263,12 +263,12 @@ pub enum CredentialOrAcceptanceToken {
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
 pub struct CredentialOfferGrants {
     /// Adds support for the authorized code flow as defined in section 3.4 of the [openid4vci
-    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-3.4).
+    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-3.4).
     #[serde(skip_serializing_if = "Option::is_none", rename = "authorization_code")]
     pub authorized_code_flow: Option<AuthorizedCodeFlow>,
 
     /// Adds support for the pre-authorized code flow as defined in section 3.5 of the [openid4vci
-    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-3.5).
+    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-3.5).
     #[serde(
         skip_serializing_if = "Option::is_none",
         rename = "urn:ietf:params:oauth:grant-type:pre-authorized_code"
@@ -330,7 +330,7 @@ pub struct CredentialSuccessResponse {
     /// Contains issued Credential. MUST be present when `acceptance_token` is not returned. MAY be a
     /// JSON string or a JSON object, depending on the Credential format. See Appendix E of the
     /// [openid4vci
-    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#format_profiles)
+    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#format_profiles)
     /// for the Credential format specific encoding requirements.
     credential: Option<CredentialFormatProfileOrEncoded>,
 
@@ -340,7 +340,7 @@ pub struct CredentialSuccessResponse {
 
     /// JSON string containing a nonce to be used to create a proof of possession of key material
     /// when requesting a Credential (see Section 7.2 of the [openid4vci
-    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential_request)).
+    /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#credential_request)).
     /// When received, the Wallet MUST use this nonce value for its subsequent credential requests
     /// until the Credential Issuer provides a fresh nonce.
     c_nonce: Option<String>,
@@ -355,7 +355,7 @@ pub struct CredentialSuccessResponse {
 pub struct CNonce {
     /// JSON string containing a nonce to be used to create a proof of possession of key material
     /// when requesting a Credential (see Section 7.2 of the [openidvci
-    /// specifciation](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-7.2)).
+    /// specifciation](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-7.2)).
     /// When received, the Wallet MUST use this nonce value for its subsequent credential requests
     /// until the Credential Issuer provides a fresh nonce.
     pub c_nonce: String,
