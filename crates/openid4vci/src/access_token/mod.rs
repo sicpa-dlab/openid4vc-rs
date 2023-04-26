@@ -10,8 +10,7 @@ use crate::types::token_type::AccessTokenType;
 use crate::validate::Validatable;
 use crate::validate::ValidationError;
 
-use self::error::AccessTokenError;
-use self::error::AccessTokenResult;
+use self::error::{AccessTokenError, AccessTokenResult};
 use self::error_response::AccessTokenErrorCode;
 
 /// Error module for the access token module
