@@ -9,4 +9,4 @@ COPY . .
 
 RUN cargo build --release
 
-CMD ./target/release/server
+CMD ./target/release/openid4vci-server

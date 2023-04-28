@@ -1,0 +1,10 @@
+[package]
+name = "siopv2"
+
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[dependencies]

@@ -1315,7 +1315,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "openid4vci_grpc"
+name = "openid4vci-grpc"
 version = "0.1.0"
 dependencies = [
  "openid4vci",
@@ -1752,6 +1752,20 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "thiserror",
+]
+
+[[package]]
+name = "siopv2"
+version = "0.1.0"
+
+[[package]]
+name = "siopv2-grpc"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "tokio",
+ "tonic",
+ "tonic-build",
 ]
 
 [[package]]
