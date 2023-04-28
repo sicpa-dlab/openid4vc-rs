@@ -13,11 +13,11 @@ This repository contains a Rust implementation the [OpenID for Verifiable Creden
 
 ## Goals
 
-The implementation in this repository has a few goals and design choices that are important to understand, before using it in your own project. Specifically, the libraries:
+The implementation in this repository has a few goals and design choices that are important to understand, before using it in your own project. Specifically the libraries:
 
 - are designed to be used as a building block for a larger system. It is not designed to be used as a standalone application, and is missing a lot of functionality that is required for a top-level application.
 - help in creating and evaluating/verifying the request and response objects from the various openid4vc specifications. However, it does not expose any of the needed HTTP(s) endpoints that are required by the specifications. This is left to the user of the libraries to implement.
-- The libraries are written to be un-opinionated about the system they will be used in. This means that the libraries do not enforce any specific cryptographic algorithms, or any specific storage mechanism. Things that are left to the user these libraries to implement:
+- The libraries are written to be un-opinionated about the system they will be used in. This means that the libraries do not enforce any specific cryptographic algorithms, or any specific storage mechanism. Things that are left to the user of these libraries to implement:
   - Signing and verification of JWTs, Verifiable Credentials and other cryptographic operations.
   - Resolving of DIDs to DID Documents
   - Storage of the various objects that are created and evaluated by the libraries.
