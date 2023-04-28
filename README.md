@@ -1,6 +1,6 @@
 # OpenID for Verifiable Credentials
 
-This repository contains a Rust implementation the [OpenID for Verifiable Credentials](https://openid.net/openid4vc/) specifications. The specifications that are currently implemented, or in progress of being implemented are:
+This repository contains a Rust implementation and gRPC bindings of the [OpenID for Verifiable Credentials](https://openid.net/openid4vc/) specifications. The specifications that are currently implemented, or in progress of being implemented are:
 
 - An implementation of the [openid4vci
   specification 1.0 - Draft
