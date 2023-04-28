@@ -133,6 +133,7 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
             credential_offer.as_ref(),
             authorization_server_metadata.as_ref(),
             did_document.as_ref(),
+            None,
         )
         .map_err(GrpcError::CredentialIssuerError)
         {
@@ -187,11 +188,14 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
         )
         .map_err(GrpcError::CredentialIssuerError)
         {
-            Ok(response) => create_credential_success_response_response::Response::Success(
-                create_credential_success_response_response::Success {
-                    success_response: serialize_to_slice(response)?,
-                },
-            ),
+            Ok((response, created_at)) => {
+                create_credential_success_response_response::Response::Success(
+                    create_credential_success_response_response::Success {
+                        success_response: serialize_to_slice(response)?,
+                        created_at: created_at.to_string(),
+                    },
+                )
+            }
             Err(e) => create_credential_success_response_response::Response::Error(e.try_into()?),
         };
 

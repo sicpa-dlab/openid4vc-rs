@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -38,7 +40,7 @@ pub struct AccessTokenSuccessResponse {
     /// (OAuth2) RECOMMENDED. The lifetime in seconds of the access token.  For example, the value "3600" denotes that the access token will
     /// expire in one hour from the time the response was generated. If omitted, the authorization server SHOULD provide the
     /// expiration time via other means or document the default value.
-    pub expires_in: Option<u64>,
+    pub expires_in: Option<u32>,
 
     /// (OAuth2) OPTIONAL, if identical to the scope requested by the client; otherwise, REQUIRED.
     /// The scope of the access token as described by Section 3.3 of the [OAuth2 Specification](https://www.rfc-editor.org/rfc/rfc6749.html#section-3.3).
@@ -49,7 +51,7 @@ pub struct AccessTokenSuccessResponse {
     pub c_nonce: Option<String>,
 
     /// The lifetime in seconds of the `c_nonce`
-    pub c_nonce_expires_in: Option<u64>,
+    pub c_nonce_expires_in: Option<u32>,
 
     /// In the Pre-Authorized Code Flow, the Token Request is still pending as the Credential Issuer is waiting
     /// for the End-User interaction to complete. The client SHOULD repeat the Token Request. Before each new request,
@@ -58,7 +60,18 @@ pub struct AccessTokenSuccessResponse {
 
     /// The minimum amount of time in seconds that the client SHOULD wait between polling requests to the
     /// Token Endpoint in the Pre-Authorized Code Flow. If no value is provided, clients MUST use 5 as the default.
-    pub interval: Option<u64>,
+    pub interval: Option<u32>,
+}
+
+impl Validatable for AccessTokenSuccessResponse {
+    fn validate(&self) -> Result<(), ValidationError> {
+        if self.c_nonce.is_none() && self.c_nonce_expires_in.is_some() {
+            return Err(ValidationError::Any {
+                validation_message: "c_nonce_expires_in is provided, but c_nonce is not".to_owned(),
+            });
+        }
+        Ok(())
+    }
 }
 
 /// Grant type for the access token request as specified in section 6.1 of the [openid4vci
@@ -126,6 +139,7 @@ impl Validatable for AccessTokenRequest {
 /// Additional options for validation for the `access_token` request
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct EvaluateAccessTokenRequestOptions {
+    /// Provided user code to validate against
     user_code: Option<u64>,
 }
 
@@ -278,13 +292,13 @@ impl AccessToken {
     pub fn create_access_token_success_response(
         access_token: String,
         token_type: AccessTokenType,
-        expires_in: Option<u64>,
+        expires_in: Option<u32>,
         scope: Option<String>,
         c_nonce: Option<String>,
-        c_nonce_expires_in: Option<u64>,
+        c_nonce_expires_in: Option<u32>,
         authorization_pending: Option<bool>,
-        interval: Option<u64>,
-    ) -> AccessTokenResult<AccessTokenSuccessResponse> {
+        interval: Option<u32>,
+    ) -> AccessTokenResult<(AccessTokenSuccessResponse, DateTime<Utc>)> {
         let token_response = AccessTokenSuccessResponse {
             access_token,
             token_type,
@@ -296,7 +310,7 @@ impl AccessToken {
             interval,
         };
 
-        Ok(token_response)
+        Ok((token_response, Utc::now()))
     }
 }
 

@@ -181,7 +181,9 @@ impl ProofJwt {
     ///
     /// # Errors
     ///
-    /// - When
+    /// - When did could not be transformed
+    /// - When `jwk` is used
+    /// - When `x5c` is used
     pub fn extract_kid(&self) -> JwtResult<Option<String>> {
         if let Some(header) = &self.header.additional_header {
             match header {
@@ -269,6 +271,22 @@ impl ProofJwt {
 
         // Return the bytes of the signature
         Ok(signature.as_bytes().to_vec())
+    }
+
+    /// Check whether the nonce is in the in the `JWT`.
+    ///
+    /// # Errors
+    ///
+    /// - When the nonce from the `JWT` does not match the provided nonce
+    pub fn check_nonce(&self, nonce: Option<String>) -> JwtResult<()> {
+        if Some(&self.body.nonce) == nonce.as_ref() {
+            Ok(())
+        } else {
+            Err(JwtError::NonceMismatch {
+                expected_nonce: nonce,
+                actual_nonce: self.body.nonce.clone(),
+            })
+        }
     }
 }
 

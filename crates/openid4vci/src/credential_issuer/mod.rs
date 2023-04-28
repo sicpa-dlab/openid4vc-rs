@@ -12,6 +12,9 @@ use crate::types::credential_request::CredentialRequest;
 use crate::types::credential_request::CredentialRequestProof;
 use crate::validate::Validatable;
 use crate::validate::ValidationError;
+use chrono::DateTime;
+use chrono::Duration;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use std::str::FromStr;
@@ -346,11 +349,11 @@ pub struct CredentialSuccessResponse {
     c_nonce: Option<String>,
 
     /// JSON integer denoting the lifetime in seconds of the c_nonce.
-    c_nonce_expires_in: Option<u64>,
+    c_nonce_expires_in: Option<u32>,
 }
 
 /// Struct value as a union for the input to either contain a `c_nonce` and a `c_nonce_expires_in` as
-/// a [`Option<u64>`]. These values always have to be supplied together.
+/// a [`Option<u32>`]. These values always have to be supplied together.
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Hash)]
 pub struct CNonce {
     /// JSON string containing a nonce to be used to create a proof of possession of key material
@@ -361,7 +364,27 @@ pub struct CNonce {
     pub c_nonce: String,
 
     /// JSON integer denoting the lifetime in seconds of the `c_nonce`.
-    pub c_nonce_expires_in: Option<u64>,
+    pub c_nonce_expires_in: Option<u32>,
+}
+
+/// Additional options for validation of the credential request
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Hash, Clone)]
+pub struct EvaluateCredentialRequestOptions {
+    /// Additional nonce options for validation
+    c_nonce: Option<CNonceOptions>,
+}
+
+/// Extra nonce options for validation
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Hash, Clone)]
+pub struct CNonceOptions {
+    /// Lifetime of the nonce from [``Utc::now`] in seconds
+    c_nonce_expires_in: u32,
+
+    /// Expected nonce in the `JWT`
+    expected_c_nonce: String,
+
+    /// Timestamp of when the nonce was created
+    c_nonce_created_at: DateTime<Utc>,
 }
 
 impl CredentialIssuer {
@@ -459,21 +482,45 @@ impl CredentialIssuer {
         credential_offer: Option<&CredentialOffer>,
         authorization_server_metadata: Option<&AuthorizationServerMetadata>,
         did_document: Option<&ssi_dids::Document>,
+        evaluate_credential_request_options: Option<EvaluateCredentialRequestOptions>,
     ) -> CredentialIssuerResult<CredentialIssuerEvaluateRequestResponse> {
         issuer_metadata.validate()?;
-        credential_request.validate()?;
+
+        if let Some(c_nonce_options) = evaluate_credential_request_options
+            .clone()
+            .and_then(|o| o.c_nonce)
+        {
+            let expiry_timestamp = c_nonce_options.c_nonce_created_at
+                + Duration::seconds(c_nonce_options.c_nonce_expires_in.into());
+            let now = Utc::now();
+
+            if expiry_timestamp < now {
+                return Err(CredentialIssuerError::CNonceIsExpired {
+                    now,
+                    expiry_timestamp,
+                });
+            }
+        }
 
         if let Some(credential_offer) = credential_offer {
             credential_offer.validate()?;
+        } else {
+            return Err(CredentialIssuerError::CredentialOfferMustBeSupplied);
         };
 
         if let Some(authorization_server_metadata) = authorization_server_metadata {
             authorization_server_metadata.validate()?;
+            return Err(CredentialIssuerError::AuthorizationServerMetadataNotSupported);
         };
 
         if let Some(CredentialRequestProof { jwt, .. }) = &credential_request.proof {
             let jwt = ProofJwt::from_str(jwt)?;
             jwt.validate()?;
+
+            let expected_c_nonce = evaluate_credential_request_options
+                .and_then(|o| o.c_nonce)
+                .map(|c| c.expected_c_nonce);
+            jwt.check_nonce(expected_c_nonce)?;
 
             let (public_key, algorithm) = jwt.extract_key_and_alg(did_document)?;
             let signature = jwt.extract_signature()?;
@@ -508,7 +555,7 @@ impl CredentialIssuer {
         credential_request: &CredentialRequest,
         credential_or_acceptance_token: Option<CredentialOrAcceptanceToken>,
         c_nonce: Option<CNonce>,
-    ) -> CredentialIssuerResult<CredentialSuccessResponse> {
+    ) -> CredentialIssuerResult<(CredentialSuccessResponse, DateTime<Utc>)> {
         credential_request.validate()?;
 
         let (c_nonce, c_nonce_expires_in) = match c_nonce {
@@ -538,7 +585,7 @@ impl CredentialIssuer {
             c_nonce_expires_in,
         };
 
-        Ok(response)
+        Ok((response, Utc::now()))
     }
 
     /// Create an error response
@@ -905,10 +952,12 @@ mod test_create_credential_success_response {
                 c_nonce: "nonce".to_owned(),
                 c_nonce_expires_in: Some(10),
             }),
+            None,
         )
         .expect("Unable to create success response");
 
         let credential = match success_response
+            .0
             .credential
             .as_ref()
             .expect("No credential found")
@@ -920,13 +969,13 @@ mod test_create_credential_success_response {
             }
         };
 
-        assert_eq!(success_response.format, "ldp_vc");
+        assert_eq!(success_response.0.format, "ldp_vc");
         assert_eq!(
             credential,
             serde_json::from_value(cfp).expect("Unable to create cfp")
         );
-        assert_eq!(success_response.acceptance_token, None);
-        assert_eq!(success_response.c_nonce, Some("nonce".to_owned()));
-        assert_eq!(success_response.c_nonce_expires_in, Some(10));
+        assert_eq!(success_response.0.acceptance_token, None);
+        assert_eq!(success_response.0.c_nonce, Some("nonce".to_owned()));
+        assert_eq!(success_response.0.c_nonce_expires_in, Some(10));
     }
 }

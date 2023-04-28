@@ -30,27 +30,41 @@ pub enum AccessTokenError {
     #[error("The Authorized flow is currently not supported")]
     AuthorizedFlowNotSupported = 402,
 
+    /// Supplied credential offer has no supported code flows
     #[error("Supplied credential offer has no authorized, or pre-authorized, code flow")]
     NoFlowSupportedInCredentialOffer = 403,
 
+    /// The requested pre-authorized code flow has invalid values
     #[error("Requested pre-authorized code flow has invalid values")]
     InvalidPreAuthorizedCodeFlowValues {
+        /// Whether the pin should be supplied in the input
         should_pin_be_supplied: bool,
+
+        /// Whether the pre-authorized code flow code matches
         does_code_match: bool,
     } = 404,
 
+    /// Both the authorized and pre-authorized code flow errored out
     #[error("Both the authorized and pre-authorized are incorrect")]
     InvalidAuthorizedAndPreAuthorizedCodeFlow {
+        /// Why the authorized code flow errored
         authorized_error: Box<Self>,
+        /// Why the pre authorized code flow errored
         pre_authorized_error: Box<Self>,
     } = 405,
 
+    /// Options must be supplied to some specific evaluate functionality
     #[error("Options are required when evaluating the access token request")]
-    OptionsAreRequiredForEvaluation { reason: String } = 406,
+    OptionsAreRequiredForEvaluation {
+        /// Reason why the options were required for evaluation
+        reason: String,
+    } = 406,
 
+    /// supplied user pin and provided user pin do not match
     #[error("Provided user pin does not match user pin from access token request")]
     UserPinMismatch = 407,
 
+    /// Currently, credential offer is the only supported flow
     #[error("Access token request is not yet supported without a credential offer")]
     CredentialOfferMustBeSupplied = 409,
 }
