@@ -5,7 +5,7 @@ This repository contains:
 -   An implementation of the [openid4vci
     specification 1.0 - Draft
     11](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html).
--   An implementation of the [siopv2 1.0 - Draft
+-   An implementation of the [siopv2 specification 1.0 - Draft
     12](https://openid.net/specs/openid-connect-self-issued-v2-1_0-12.html).
 
 > NOTE: The pre-authorized code flow is only supported right now.
