@@ -63,6 +63,14 @@ cargo run --bin client
 
 ### `siopv2`
 
+This package will be an implementation of the [siopv2 specification 1.0 - Draft 12](https://openid.net/specs/openid-connect-self-issued-v2-1_0-12.html).
+as a consumable library. This means that the library will not contain any
+endpoints as required by the specification. The functionality covers:
+1. Creating and evaluating authorization requests
+2. Creating and evaluating authorization responses
+
+In the future a separate `openid4vp` crate will be added that can work in combination with the `siopv2` crate.
+
 ### `siopv2-grpc`
 
 ## Flow
