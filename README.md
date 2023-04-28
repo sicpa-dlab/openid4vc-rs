@@ -1,8 +1,12 @@
 # OpenID4VC
 
-This repository contains the code for an implementation of the [openid4vci
-specification 1.0 - Draft
-11](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html).
+This repository contains:
+
+-   An implementation of the [openid4vci
+    specification 1.0 - Draft
+    11](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html).
+-   An implementation of the [siopv2 1.0 - Draft
+    12](https://openid.net/specs/openid-connect-self-issued-v2-1_0-12.html).
 
 > NOTE: The pre-authorized code flow is only supported right now.
 
@@ -20,7 +24,7 @@ endpoints as required by the specification. The functionality can be seen by
 the two following points:
 
 1. Create objects for the openid4vci specification (such as the credential
-offer)
+   offer)
 1. Evaluate incoming requests
 1. Generate error and success responses
 
@@ -40,22 +44,26 @@ A small example has been created for the
 Dockerfile created. This can be built with the following command (from the root
 of the project):
 
-```sh 
-docker build -f docker/server.Dockerfile -t server . 
+```sh
+docker build -f docker/server.Dockerfile -t server .
 ```
 
 To run the image:
 
-```sh 
-docker run -p50051:50051 server 
+```sh
+docker run -p50051:50051 server
 ```
 
 And lastly, to send a message using the
 [client](./crates/openid4vci-grpc/src/client):
 
-```sh 
-cargo run --bin client 
+```sh
+cargo run --bin client
 ```
+
+### `siopv2`
+
+### `siopv2-grpc`
 
 ## Flow
 
