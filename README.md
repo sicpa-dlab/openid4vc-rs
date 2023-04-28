@@ -73,6 +73,12 @@ In the future a separate `openid4vp` crate will be added that can work in combin
 
 ### `siopv2-grpc`
 
+This package will expose the functionality of the `siopv2` crate over gRPC. These
+interfaces are not compatible with the endpoints as defined in the siopv2
+specification as those have to be expose over HTTP. This package can be used in
+a micro-service architecture where the communication between the different
+services is done with gRPC.
+
 ## Flow
 
 ### Pre Authorized Code Flow (as an issuer)
