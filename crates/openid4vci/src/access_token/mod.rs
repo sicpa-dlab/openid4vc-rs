@@ -325,7 +325,7 @@ mod test_access_token_evaluate_request {
         let access_token_request = AccessTokenRequest {
             grant_type: GrantType::PreAuthorizedCodeFlow {
                 pre_authorized_code: "abc".to_owned(),
-                user_pin: Some(123213),
+                user_pin: Some(123_213),
             },
         };
         let credential_offer = CredentialOffer {
@@ -341,7 +341,7 @@ mod test_access_token_evaluate_request {
         };
 
         let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
-            user_code: Some(123213),
+            user_code: Some(123_213),
         };
 
         let output = AccessToken::evaluate_access_token_request(
@@ -662,18 +662,17 @@ mod test_access_token_success_response {
 
     #[test]
     fn success_response() {
-        let success_response: AccessTokenSuccessResponse =
-            AccessToken::create_access_token_success_response(
-                "Hello".to_string(),
-                AccessTokenType::Bearer,
-                Some(3600),
-                Some("scope".to_string()),
-                Some("c_nonce".to_string()),
-                Some(3600),
-                Some(true),
-                Some(5),
-            )
-            .expect("Unable to create access token success response");
+        let (success_response, _) = AccessToken::create_access_token_success_response(
+            "Hello".to_string(),
+            AccessTokenType::Bearer,
+            Some(3600),
+            Some("scope".to_string()),
+            Some("c_nonce".to_string()),
+            Some(3600),
+            Some(true),
+            Some(5),
+        )
+        .expect("Unable to create access token success response");
 
         assert_eq!(success_response.access_token, "Hello".to_string());
         assert_eq!(success_response.token_type, AccessTokenType::Bearer);

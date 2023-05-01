@@ -371,20 +371,20 @@ pub struct CNonce {
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Hash, Clone)]
 pub struct EvaluateCredentialRequestOptions {
     /// Additional nonce options for validation
-    c_nonce: Option<CNonceOptions>,
+    pub c_nonce: Option<CNonceOptions>,
 }
 
 /// Extra nonce options for validation
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Hash, Clone)]
 pub struct CNonceOptions {
     /// Lifetime of the nonce from [``Utc::now`] in seconds
-    c_nonce_expires_in: u32,
+    pub c_nonce_expires_in: u32,
 
     /// Expected nonce in the `JWT`
-    expected_c_nonce: String,
+    pub expected_c_nonce: String,
 
     /// Timestamp of when the nonce was created
-    c_nonce_created_at: DateTime<Utc>,
+    pub c_nonce_created_at: DateTime<Utc>,
 }
 
 impl CredentialIssuer {
@@ -414,14 +414,14 @@ impl CredentialIssuer {
             return Err(CredentialIssuerError::AuthorizedFlowNotSupported);
         }
 
-        let credentials = credentials.into();
+        let credentials: CredentialOrIds = credentials.into();
 
         // Resolve all the credential ids, if supplied
         // This also checks if the credential is supported by the issuer
         //
         // The resulting value is omitted as we use this check for now that they all reference a
         // credential inside the `issuer_metadata`
-        let _ = credentials.resolve_all(issuer_metadata)?;
+        credentials.resolve_all(issuer_metadata)?;
 
         // Create a credential offer based on the input
         let credential_offer = CredentialOffer::new(
@@ -733,12 +733,12 @@ mod test_pre_evaluate_credential_request {
 mod test_evaluate_credential_request {
     use ssi_dids::Document;
 
+    use crate::jwt::error::JwtError;
+
     use super::*;
 
-    #[test]
-    #[allow(clippy::too_many_lines)]
-    fn should_evaluate_credential_request() {
-        let cfp = serde_json::json!({
+    fn valid_credential_format_profile() -> serde_json::Value {
+        serde_json::json!({
             "format": "jwt_vc_json",
             "id": "UniversityDegree_JWT",
             "types": [
@@ -771,18 +771,22 @@ mod test_evaluate_credential_request {
                     ]
                 }
             }
-        });
+        })
+    }
 
-        let issuer_metadata: CredentialIssuerMetadata = serde_json::from_value(serde_json::json!({
+    fn valid_issuer_metadata() -> CredentialIssuerMetadata {
+        serde_json::from_value(serde_json::json!({
             "credential_issuer": "01001110",
             "credential_endpoint": "https://example.org",
             "credentials_supported": [
-                &cfp
+                valid_credential_format_profile(),
             ],
         }))
-        .expect("Unable to create issuer metadata");
+        .expect("Unable to create issuer metadata")
+    }
 
-        let credential_request = CredentialRequest {
+    fn valid_credential_request() -> CredentialRequest {
+        CredentialRequest {
          proof: Some(CredentialRequestProof {
              proof_type: "jwt".to_owned(),
              jwt: "ewogICJraWQiOiAiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjejZNa3BUSFI4Vk5zQnhZQUFXSHV0MkdlYWRkOWpTd3VCVjh4Um9BbndXc2R2a3RIIiwKICAiYWxnIjogIkVkRFNBIiwKICAidHlwIjogIm9wZW5pZDR2Y2ktcHJvb2Yrand0Igp9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
@@ -793,9 +797,15 @@ mod test_evaluate_credential_request {
              credential_subject: None,
              order: None,
          },
-     };
+     }
+    }
 
-        let did_document = serde_json::json!({
+    fn valid_authorized_server_metadata() -> AuthorizationServerMetadata {
+        AuthorizationServerMetadata {}
+    }
+
+    fn valid_did_document() -> Document {
+        serde_json::from_value(serde_json::json!({
           "@context": [
             "https://www.w3.org/ns/did/v1",
             {
@@ -825,17 +835,69 @@ mod test_evaluate_credential_request {
           "assertionMethod": [
             "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
           ]
-        });
+        })).expect("Unable to create did document")
+    }
 
-        let did_document: Document =
-            serde_json::from_value(did_document).expect("Unable to create did document");
+    fn valid_credential_offer() -> CredentialOffer {
+        let (credential_offer, _) = CredentialIssuer::create_offer(
+            &valid_issuer_metadata(),
+            vec!["UniversityDegree_JWT"],
+            &Some(String::default()),
+            &None,
+            &Some(PreAuthorizedCodeFlow::default()),
+        )
+        .expect("Unable to create credential offer");
+
+        credential_offer
+    }
+
+    fn valid_evaluate_credential_request_options() -> EvaluateCredentialRequestOptions {
+        EvaluateCredentialRequestOptions {
+            c_nonce: Some(CNonceOptions {
+                c_nonce_expires_in: 1000,
+                expected_c_nonce: "tZignsnFbp".to_owned(),
+                c_nonce_created_at: Utc::now(),
+            }),
+        }
+    }
+
+    fn invalid_evaluate_credential_request_options_mismatch_nonce(
+    ) -> EvaluateCredentialRequestOptions {
+        EvaluateCredentialRequestOptions {
+            c_nonce: Some(CNonceOptions {
+                c_nonce_expires_in: 1000,
+                expected_c_nonce: "some_invalid_nonce".to_owned(),
+                c_nonce_created_at: Utc::now(),
+            }),
+        }
+    }
+
+    fn invalid_evaluate_credential_request_options_expired_nonce(
+    ) -> EvaluateCredentialRequestOptions {
+        EvaluateCredentialRequestOptions {
+            c_nonce: Some(CNonceOptions {
+                c_nonce_expires_in: 1000,
+                expected_c_nonce: "tZignsnFbp".to_owned(),
+                c_nonce_created_at: Utc::now() - Duration::hours(100),
+            }),
+        }
+    }
+
+    #[test]
+    fn should_evaluate_credential_request() {
+        let issuer_metadata = valid_issuer_metadata();
+        let did_document = valid_did_document();
+        let credential_request = valid_credential_request();
+        let credential_offer = valid_credential_offer();
+        let evaluate_credential_request_options = valid_evaluate_credential_request_options();
 
         let evaluated = CredentialIssuer::evaluate_credential_request(
             &issuer_metadata,
             &credential_request,
-            None,
+            Some(&credential_offer),
             None,
             Some(&did_document),
+            Some(evaluate_credential_request_options),
         )
         .expect("Unable to evaluate credential request");
 
@@ -882,6 +944,127 @@ mod test_evaluate_credential_request {
                 110, 70, 98, 112, 34, 125
             ]
         );
+    }
+
+    #[test]
+    fn should_not_evaluate_credential_request_without_offer() {
+        let issuer_metadata = valid_issuer_metadata();
+        let did_document = valid_did_document();
+        let credential_request = valid_credential_request();
+        let evaluate_credential_request_options = valid_evaluate_credential_request_options();
+
+        let evaluated = CredentialIssuer::evaluate_credential_request(
+            &issuer_metadata,
+            &credential_request,
+            None,
+            None,
+            Some(&did_document),
+            Some(evaluate_credential_request_options),
+        );
+
+        assert_eq!(
+            evaluated,
+            Err(CredentialIssuerError::CredentialOfferMustBeSupplied)
+        );
+    }
+
+    #[test]
+    fn should_not_evaluate_credential_request_with_authorized_server_metadata() {
+        let issuer_metadata = valid_issuer_metadata();
+        let did_document = valid_did_document();
+        let credential_offer = valid_credential_offer();
+        let authorized_server_metadata = valid_authorized_server_metadata();
+        let credential_request = valid_credential_request();
+        let evaluate_credential_request_options = valid_evaluate_credential_request_options();
+
+        let evaluated = CredentialIssuer::evaluate_credential_request(
+            &issuer_metadata,
+            &credential_request,
+            Some(&credential_offer),
+            Some(&authorized_server_metadata),
+            Some(&did_document),
+            Some(evaluate_credential_request_options),
+        );
+
+        assert_eq!(
+            evaluated,
+            Err(CredentialIssuerError::AuthorizationServerMetadataNotSupported)
+        );
+    }
+
+    #[test]
+    fn should_not_evaluate_credential_request_without_did_document_when_kid_in_jwk() {
+        let issuer_metadata = valid_issuer_metadata();
+        let credential_request = valid_credential_request();
+        let credential_offer = valid_credential_offer();
+        let evaluate_credential_request_options = valid_evaluate_credential_request_options();
+
+        let evaluated = CredentialIssuer::evaluate_credential_request(
+            &issuer_metadata,
+            &credential_request,
+            Some(&credential_offer),
+            None,
+            None,
+            Some(evaluate_credential_request_options),
+        );
+
+        assert_eq!(
+            evaluated,
+            Err(CredentialIssuerError::JwtError(
+                JwtError::NoDidDocumentProvidedForKidAsDid
+            ))
+        );
+    }
+
+    #[test]
+    fn should_not_evaluate_credential_request_with_nonce_mismatch() {
+        let issuer_metadata = valid_issuer_metadata();
+        let credential_request = valid_credential_request();
+        let did_document = valid_did_document();
+        let credential_offer = valid_credential_offer();
+        let evaluate_credential_request_options =
+            invalid_evaluate_credential_request_options_mismatch_nonce();
+
+        let evaluated = CredentialIssuer::evaluate_credential_request(
+            &issuer_metadata,
+            &credential_request,
+            Some(&credential_offer),
+            None,
+            Some(&did_document),
+            Some(evaluate_credential_request_options),
+        );
+
+        assert_eq!(
+            evaluated,
+            Err(CredentialIssuerError::JwtError(JwtError::NonceMismatch {
+                expected_nonce: Some("some_invalid_nonce".to_owned()),
+                actual_nonce: "tZignsnFbp".to_owned()
+            }))
+        );
+    }
+
+    #[test]
+    fn should_not_evaluate_credential_request_with_expired_nonce() {
+        let issuer_metadata = valid_issuer_metadata();
+        let credential_request = valid_credential_request();
+        let did_document = valid_did_document();
+        let credential_offer = valid_credential_offer();
+        let evaluate_credential_request_options =
+            invalid_evaluate_credential_request_options_expired_nonce();
+
+        let evaluated = CredentialIssuer::evaluate_credential_request(
+            &issuer_metadata,
+            &credential_request,
+            Some(&credential_offer),
+            None,
+            Some(&did_document),
+            Some(evaluate_credential_request_options),
+        );
+
+        assert!(matches!(
+            evaluated,
+            Err(CredentialIssuerError::CNonceIsExpired { .. })
+        ));
     }
 }
 
@@ -952,7 +1135,6 @@ mod test_create_credential_success_response {
                 c_nonce: "nonce".to_owned(),
                 c_nonce_expires_in: Some(10),
             }),
-            None,
         )
         .expect("Unable to create success response");
 

@@ -20,7 +20,7 @@ use openid4vci::credential_issuer::error::CredentialIssuerError;
 use openid4vci::credential_issuer::error_code::CredentialIssuerErrorCode;
 use openid4vci::credential_issuer::{
     AuthorizedCodeFlow, CNonce, CredentialIssuer, CredentialOffer, CredentialOrAcceptanceToken,
-    CredentialOrIds, PreAuthorizedCodeFlow,
+    CredentialOrIds, EvaluateCredentialRequestOptions, PreAuthorizedCodeFlow,
 };
 use openid4vci::types::authorization_server_metadata::AuthorizationServerMetadata;
 use openid4vci::types::credential_issuer_metadata::CredentialIssuerMetadata;
@@ -113,6 +113,7 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
             credential_offer,
             did_document,
             authorization_server_metadata,
+            evaluate_credential_request_options,
         } = request.into_inner();
 
         let issuer_metadata = deserialize_slice::<CredentialIssuerMetadata>(&issuer_metadata)?;
@@ -127,13 +128,17 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
 
         let did_document = deserialize_optional_slice::<Document>(&did_document)?;
 
+        let evaluate_credential_request_options = deserialize_optional_slice::<
+            EvaluateCredentialRequestOptions,
+        >(&evaluate_credential_request_options)?;
+
         let response = match CredentialIssuer::evaluate_credential_request(
             &issuer_metadata,
             &credential_request,
             credential_offer.as_ref(),
             authorization_server_metadata.as_ref(),
             did_document.as_ref(),
-            None,
+            evaluate_credential_request_options,
         )
         .map_err(GrpcError::CredentialIssuerError)
         {
@@ -243,8 +248,10 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
 
 #[cfg(test)]
 mod credential_issuer_tests {
-    use openid4vci::types::{
-        credential::CredentialFormatProfile, credential_request::CredentialRequestProof,
+    use chrono::Utc;
+    use openid4vci::{
+        credential_issuer::{CNonceOptions, CredentialOfferGrants},
+        types::{credential::CredentialFormatProfile, credential_request::CredentialRequestProof},
     };
 
     use crate::grpc_openid4vci::Error;
@@ -441,6 +448,7 @@ mod credential_issuer_tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn should_evaluate_credential_request() {
         let issuer = GrpcCredentialIssuer::default();
 
@@ -480,7 +488,7 @@ mod credential_issuer_tests {
         });
 
         let issuer_metadata = serde_json::json!({
-            "credential_issuer": "01001110",
+            "credential_issuer": "test",
             "credential_endpoint": "https://example.org",
             "credentials_supported": [
                 &cfp
@@ -546,19 +554,53 @@ mod credential_issuer_tests {
         let credential_request = serde_json::to_vec(&credential_request)
             .expect("Unable to serialize credential request");
 
+        let credential_offer = CredentialOffer {
+            credential_issuer: "me".to_owned(),
+            credentials: CredentialOrIds::new(vec![]),
+            grants: CredentialOfferGrants {
+                authorized_code_flow: Some(AuthorizedCodeFlow { issuer_state: None }),
+                pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
+                    code: "abc".to_owned(),
+                    user_pin_required: Some(true),
+                }),
+            },
+        };
+
+        let credential_offer =
+            serde_json::to_vec(&credential_offer).expect("Unable to serialize credential offer");
+
+        let options = EvaluateCredentialRequestOptions {
+            c_nonce: Some(CNonceOptions {
+                expected_c_nonce: "tZignsnFbp".to_owned(),
+                c_nonce_expires_in: 1000,
+                c_nonce_created_at: Utc::now(),
+            }),
+        };
+
+        let options = serde_json::to_vec(&options).expect("Unable to serialize options");
+
         let request = tonic::Request::new(EvaluateCredentialRequestRequest {
             credential_request,
             did_document: Some(did_document),
             issuer_metadata,
-            credential_offer: None,
+            credential_offer: Some(credential_offer),
             authorization_server_metadata: None,
+            evaluate_credential_request_options: Some(options),
         });
         let response = issuer
             .evaluate_credential_request(request)
             .await
             .expect("Unable to send request")
             .into_inner();
+        let response = response.response.expect("No response found");
 
-        println!("{response:#?}");
+        let response = match response {
+            evaluate_credential_request_response::Response::Success(s) => s.proof_of_possession,
+            evaluate_credential_request_response::Response::Error(e) => {
+                panic!("{:#?}", e.description)
+            }
+        };
+
+        assert!(response.is_some());
     }
 }

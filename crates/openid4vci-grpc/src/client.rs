@@ -205,6 +205,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         issuer_metadata,
         credential_offer: None,
         authorization_server_metadata: None,
+        evaluate_credential_request_options: None,
     });
     let response = credential_issuer_client
         .evaluate_credential_request(request)
