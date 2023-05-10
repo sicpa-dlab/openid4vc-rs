@@ -43,12 +43,15 @@ pub enum JwtError {
         client_id: Option<String>,
     } = 303,
 
+    /// Could not find a specific key in the header
     #[error("No `kid`, `jwk` or `x5c` found in the JWT header")]
     NoKeyFoundInProof = 304,
 
+    /// Did document was required because the `kid` was in the header, but none provided
     #[error("No did document provided when the `kid` is a did")]
     NoDidDocumentProvidedForKidAsDid = 305,
 
+    /// `kid` could not be transformed into a did
     #[error("Unable to transform did, from `kid`, into a Did type")]
     UnableToTransformIntoDid {
         /// Key id that should be transformed into a did
@@ -58,6 +61,7 @@ pub enum JwtError {
         message: String,
     } = 306,
 
+    /// did, `kid`, could not be found in the did document
     #[error("Unable to find the verification method the did, `kid`, was referring to")]
     UnableToResolveDidInDidDocument {
         /// The absolute did that could not be found in the document
@@ -67,12 +71,14 @@ pub enum JwtError {
         message: String,
     } = 307,
 
+    /// Verification method from the did document could not be mapped to a `JWK`
     #[error("Unable to map the verification method to a JWK")]
     UnableToMapVerificationMethodToJwk {
         /// Message supplied by the library to give additional context
         messsage: String,
     } = 308,
 
+    /// Could not tranfrom a string into a valid jose item, e.g. jwk, jwt, etc.
     #[error("Unable to convert '{original_string}' into a valid Jose Item")]
     UnableToTransformIntoJoseItem {
         /// Value that has to be transformed into a Jose Item
@@ -82,15 +88,18 @@ pub enum JwtError {
         serde_message: String,
     } = 309,
 
+    /// Algorithm that was supplied is not supported by this library
     #[error("supplied algorithm, '{algorithm}' is not valid")]
     UnsupportedAlgorithm {
         /// The invalid algorithm
         algorithm: String,
     } = 310,
 
+    /// edDSA needs an `x` coordinate to determine the public key
     #[error("JWK with algorithm of 'edDSA' has no x coordinate")]
     EdDSAHasNoXCoordinate = 311,
 
+    /// ESxxx needs both `x` and `y` coordinates to get the public key
     #[error("JWK with algorithm of '{algorithm}' has no 'x' or 'y' coordinate")]
     ESXXXHasNoXOrYCoordinate {
         /// Algorithm used
@@ -120,7 +129,17 @@ pub enum JwtError {
 
         /// Specified key type that is not supported
         key_type: String,
-    },
+    } = 314,
+
+    /// Supplied nonce did not match the nonce inside the `JWT`
+    #[error("Expected nonce was not found in the JWT")]
+    NonceMismatch {
+        /// Supplied nonce
+        expected_nonce: Option<String>,
+
+        /// Nonce in the `JWT`
+        actual_nonce: String,
+    } = 315,
 }
 
 /// JWT result used for the [`JwtError`]

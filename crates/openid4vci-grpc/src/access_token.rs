@@ -90,11 +90,14 @@ impl AccessTokenService for GrpcAccessToken {
         )
         .map_err(GrpcError::AccessTokenError)
         {
-            Ok(response) => create_access_token_success_response_response::Response::Success(
-                create_access_token_success_response_response::Success {
-                    success_response: serialize_to_slice(response)?,
-                },
-            ),
+            Ok((response, created_at)) => {
+                create_access_token_success_response_response::Response::Success(
+                    create_access_token_success_response_response::Success {
+                        success_response: serialize_to_slice(response)?,
+                        created_at: created_at.to_string(),
+                    },
+                )
+            }
             Err(e) => create_access_token_success_response_response::Response::Error(e.try_into()?),
         };
 
@@ -196,12 +199,8 @@ mod test_access_token {
             interval: Some(5),
         };
 
-        let expected = create_access_token_success_response_response::Response::Success(
-            create_access_token_success_response_response::Success {
-                success_response: serialize_to_slice(expected_success_response)
-                    .expect("Unable to serialize success response"),
-            },
-        );
+        let expected = serialize_to_slice(expected_success_response)
+            .expect("Unable to serialize success response");
 
         let message = CreateAccessTokenSuccessResponseRequest {
             access_token: "access_token".to_string(),
@@ -221,7 +220,17 @@ mod test_access_token {
             .expect("Unable to create success response");
 
         let response: CreateAccessTokenSuccessResponseResponse = response.into_inner();
+        let response = response.response.expect("No response found");
 
-        assert_eq!(response.response, Some(expected));
+        let response = match response {
+            create_access_token_success_response_response::Response::Success(s) => {
+                s.success_response
+            }
+            create_access_token_success_response_response::Response::Error(e) => {
+                panic!("{:#?}", e.code)
+            }
+        };
+
+        assert_eq!(response, expected);
     }
 }

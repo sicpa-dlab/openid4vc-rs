@@ -61,8 +61,33 @@ pub enum CredentialIssuerError {
         expires_in: Option<DateTime<Utc>>,
     } = 106,
 
+    /// Either the credential or acceptance token must be supplied
     #[error("Credential and acceptance token cannot both be supplied for the success response")]
     CredentialAndAcceptanceTokenSupplied = 107,
+
+    /// Authorization server metadata is not yet supported
+    #[error("Authorization server metadata is not yet supported")]
+    AuthorizationServerMetadataNotSupported = 108,
+
+    /// Credential offer must be supplied as that is the only we support right now
+    #[error("Credential offer must be supplied, other flows are not supported yet")]
+    CredentialOfferMustBeSupplied = 109,
+
+    /// Options were required by the evaluate credential request call
+    #[error("evaluate credential request called without options, but were needed")]
+    EvaluteCredentialRequestOptionsNotSupplied {
+        /// Reason why the options were needed
+        reason: String,
+    } = 110,
+
+    #[error("c_nonce expires at {expiry_timestamp} which is before {now}")]
+    CNonceIsExpired {
+        /// Timestamp of now
+        now: DateTime<Utc>,
+
+        /// Timestamp of when the nonce expires
+        expiry_timestamp: DateTime<Utc>,
+    } = 111,
 }
 
 error_impl!(CredentialIssuerError, CredentialIssuerResult);

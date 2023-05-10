@@ -20,6 +20,9 @@ tokio = { version = "1.27.0", features = ["macros", "rt-multi-thread"] }
 [build-dependencies]
 tonic-build = "0.8.4"
 
+[dev-dependencies]
+chrono = { version = "0.4.24", features = ["serde"] }
+
 [[bin]]
 name = "openid4vci-server"
 path = "src/server.rs"

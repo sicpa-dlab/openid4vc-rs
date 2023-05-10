@@ -1318,6 +1318,7 @@ dependencies = [
 name = "openid4vci-grpc"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "openid4vci",
  "prost",
  "serde",
