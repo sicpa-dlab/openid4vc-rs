@@ -315,15 +315,6 @@ pub struct ProofOfPossession {
     pub signature: Vec<u8>,
 }
 
-/// Additional struct for metadata that will be used to verify
-///
-/// TODO: include nonce
-#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Hash)]
-pub struct CredentialIssuerEvaluateRequestOptions {
-    /// Id of the client that will be checked whether it is equal to the `iss` field inside the JWK
-    client_id: Option<String>,
-}
-
 /// Response structure for a `credential_success`.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct CredentialSuccessResponse {
@@ -372,6 +363,12 @@ pub struct CNonce {
 pub struct EvaluateCredentialRequestOptions {
     /// Additional nonce options for validation
     pub c_nonce: Option<CNonceOptions>,
+
+    /// Issuer id that will be used to check the `iss` field inside the `JWT`
+    pub issuer_id: Option<String>,
+
+    /// Id of the client that will be checked whether it is equal to the `sub` field inside the `JWT`
+    pub client_id: Option<String>,
 }
 
 /// Extra nonce options for validation
@@ -486,6 +483,17 @@ impl CredentialIssuer {
     ) -> CredentialIssuerResult<CredentialIssuerEvaluateRequestResponse> {
         issuer_metadata.validate()?;
 
+        if let Some(credential_offer) = credential_offer {
+            credential_offer.validate()?;
+        } else {
+            return Err(CredentialIssuerError::CredentialOfferMustBeSupplied);
+        };
+
+        if let Some(authorization_server_metadata) = authorization_server_metadata {
+            authorization_server_metadata.validate()?;
+            return Err(CredentialIssuerError::AuthorizationServerMetadataNotSupported);
+        };
+
         if let Some(c_nonce_options) = evaluate_credential_request_options
             .clone()
             .and_then(|o| o.c_nonce)
@@ -502,25 +510,23 @@ impl CredentialIssuer {
             }
         }
 
-        if let Some(credential_offer) = credential_offer {
-            credential_offer.validate()?;
-        } else {
-            return Err(CredentialIssuerError::CredentialOfferMustBeSupplied);
-        };
-
-        if let Some(authorization_server_metadata) = authorization_server_metadata {
-            authorization_server_metadata.validate()?;
-            return Err(CredentialIssuerError::AuthorizationServerMetadataNotSupported);
-        };
-
         if let Some(CredentialRequestProof { jwt, .. }) = &credential_request.proof {
             let jwt = ProofJwt::from_str(jwt)?;
             jwt.validate()?;
 
             let expected_c_nonce = evaluate_credential_request_options
+                .clone()
                 .and_then(|o| o.c_nonce)
                 .map(|c| c.expected_c_nonce);
             jwt.check_nonce(expected_c_nonce)?;
+
+            let expected_issuer = evaluate_credential_request_options
+                .clone()
+                .and_then(|o| o.issuer_id);
+            jwt.check_iss(expected_issuer)?;
+
+            let expected_subject = evaluate_credential_request_options.and_then(|o| o.client_id);
+            jwt.check_sub(expected_subject)?;
 
             let (public_key, algorithm) = jwt.extract_key_and_alg(did_document)?;
             let signature = jwt.extract_signature()?;
@@ -858,6 +864,8 @@ mod test_evaluate_credential_request {
                 expected_c_nonce: "tZignsnFbp".to_owned(),
                 c_nonce_created_at: Utc::now(),
             }),
+            issuer_id: Some("s6BhdRkqt3".to_owned()),
+            ..Default::default()
         }
     }
 
@@ -869,6 +877,8 @@ mod test_evaluate_credential_request {
                 expected_c_nonce: "some_invalid_nonce".to_owned(),
                 c_nonce_created_at: Utc::now(),
             }),
+            issuer_id: Some("s6BhdRkqt3".to_owned()),
+            ..Default::default()
         }
     }
 
@@ -880,6 +890,34 @@ mod test_evaluate_credential_request {
                 expected_c_nonce: "tZignsnFbp".to_owned(),
                 c_nonce_created_at: Utc::now() - Duration::hours(100),
             }),
+            issuer_id: Some("s6BhdRkqt3".to_owned()),
+            ..Default::default()
+        }
+    }
+
+    fn invalid_evaluate_credential_request_options_mismatch_issuer(
+    ) -> EvaluateCredentialRequestOptions {
+        EvaluateCredentialRequestOptions {
+            c_nonce: Some(CNonceOptions {
+                c_nonce_expires_in: 1000,
+                expected_c_nonce: "tZignsnFbp".to_owned(),
+                c_nonce_created_at: Utc::now(),
+            }),
+            issuer_id: None,
+            ..Default::default()
+        }
+    }
+
+    fn invalid_evaluate_credential_request_options_mismatch_subject(
+    ) -> EvaluateCredentialRequestOptions {
+        EvaluateCredentialRequestOptions {
+            c_nonce: Some(CNonceOptions {
+                c_nonce_expires_in: 1000,
+                expected_c_nonce: "tZignsnFbp".to_owned(),
+                c_nonce_created_at: Utc::now(),
+            }),
+            issuer_id: Some("s6BhdRkqt3".to_owned()),
+            client_id: Some("invalid-subject".to_owned())
         }
     }
 
@@ -928,20 +966,20 @@ mod test_evaluate_credential_request {
                 119, 87, 115, 100, 118, 107, 116, 72, 34, 125, 46, 123, 34, 105, 115, 115, 34, 58,
                 34, 115, 54, 66, 104, 100, 82, 107, 113, 116, 51, 34, 44, 34, 97, 117, 100, 34, 58,
                 34, 104, 116, 116, 112, 115, 58, 47, 47, 115, 101, 114, 118, 101, 114, 46, 101,
-                120, 97, 109, 112, 108, 101, 46, 99, 111, 109, 34, 44, 34, 105, 97, 116, 34, 58,
-                34, 50, 48, 49, 56, 45, 48, 57, 45, 49, 52, 84, 50, 49, 58, 49, 57, 58, 49, 48, 90,
-                34, 44, 34, 110, 111, 110, 99, 101, 34, 58, 34, 116, 90, 105, 103, 110, 115, 110,
-                70, 98, 112, 34, 125
+                120, 97, 109, 112, 108, 101, 46, 99, 111, 109, 34, 44, 34, 115, 117, 98, 34, 58,
+                110, 117, 108, 108, 44, 34, 105, 97, 116, 34, 58, 34, 50, 48, 49, 56, 45, 48, 57,
+                45, 49, 52, 84, 50, 49, 58, 49, 57, 58, 49, 48, 90, 34, 44, 34, 110, 111, 110, 99,
+                101, 34, 58, 34, 116, 90, 105, 103, 110, 115, 110, 70, 98, 112, 34, 125
             ]
         );
 
         assert_eq!(
             evaluated.signature,
             vec![
-                101, 120, 97, 109, 112, 108, 101, 46, 99, 111, 109, 34, 44, 34, 105, 97, 116, 34,
-                58, 34, 50, 48, 49, 56, 45, 48, 57, 45, 49, 52, 84, 50, 49, 58, 49, 57, 58, 49, 48,
-                90, 34, 44, 34, 110, 111, 110, 99, 101, 34, 58, 34, 116, 90, 105, 103, 110, 115,
-                110, 70, 98, 112, 34, 125
+                101, 120, 97, 109, 112, 108, 101, 46, 99, 111, 109, 34, 44, 34, 115, 117, 98, 34,
+                58, 110, 117, 108, 108, 44, 34, 105, 97, 116, 34, 58, 34, 50, 48, 49, 56, 45, 48,
+                57, 45, 49, 52, 84, 50, 49, 58, 49, 57, 58, 49, 48, 90, 34, 44, 34, 110, 111, 110,
+                99, 101, 34, 58, 34, 116, 90, 105, 103, 110, 115, 110, 70, 98, 112, 34, 125
             ]
         );
     }
@@ -1065,6 +1103,60 @@ mod test_evaluate_credential_request {
             evaluated,
             Err(CredentialIssuerError::CNonceIsExpired { .. })
         ));
+    }
+
+    #[test]
+    fn should_not_evaluate_credential_request_with_issuer_mismatch() {
+        let issuer_metadata = valid_issuer_metadata();
+        let credential_request = valid_credential_request();
+        let did_document = valid_did_document();
+        let credential_offer = valid_credential_offer();
+        let evaluate_credential_request_options =
+            invalid_evaluate_credential_request_options_mismatch_issuer();
+
+        let evaluated = CredentialIssuer::evaluate_credential_request(
+            &issuer_metadata,
+            &credential_request,
+            Some(&credential_offer),
+            None,
+            Some(&did_document),
+            Some(evaluate_credential_request_options),
+        );
+
+        assert_eq!(
+            evaluated,
+            Err(CredentialIssuerError::JwtError(JwtError::IssuerMismatch {
+                expected_issuer: None,
+                actual_issuer: Some("s6BhdRkqt3".to_owned())
+            }))
+        );
+    }
+
+    #[test]
+    fn should_not_evaluate_credential_request_with_subject_mismatch() {
+        let issuer_metadata = valid_issuer_metadata();
+        let credential_request = valid_credential_request();
+        let did_document = valid_did_document();
+        let credential_offer = valid_credential_offer();
+        let evaluate_credential_request_options =
+            invalid_evaluate_credential_request_options_mismatch_subject();
+
+        let evaluated = CredentialIssuer::evaluate_credential_request(
+            &issuer_metadata,
+            &credential_request,
+            Some(&credential_offer),
+            None,
+            Some(&did_document),
+            Some(evaluate_credential_request_options),
+        );
+
+        assert_eq!(
+            evaluated,
+            Err(CredentialIssuerError::JwtError(JwtError::SubjectMismatch {
+                expected_subject: Some("invalid-subject".to_owned()),
+                actual_subject: None
+            }))
+        );
     }
 }
 

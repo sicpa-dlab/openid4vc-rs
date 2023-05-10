@@ -575,6 +575,8 @@ mod credential_issuer_tests {
                 c_nonce_expires_in: 1000,
                 c_nonce_created_at: Utc::now(),
             }),
+            issuer_id: Some("s6BhdRkqt3".to_owned()),
+            ..Default::default()
         };
 
         let options = serde_json::to_vec(&options).expect("Unable to serialize options");

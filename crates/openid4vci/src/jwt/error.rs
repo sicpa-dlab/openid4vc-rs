@@ -33,14 +33,14 @@ pub enum JwtError {
         now: DateTime<Utc>,
     } = 302,
 
-    /// Provided issuer, `client_id`, does not match the `iss` field
+    /// Provided issuer, `issuer_id`, does not match the `iss` field
     #[error("`iss` field in the body mismatched with provided issuer")]
     IssuerMismatch {
-        /// issuer id in the JWT
-        iss: Option<String>,
+        /// Supplied `iss`
+        expected_issuer: Option<String>,
 
-        /// User provided client id that must match the `iss`
-        client_id: Option<String>,
+        /// `iss` in the `JWT`
+        actual_issuer: Option<String>,
     } = 303,
 
     /// Could not find a specific key in the header
@@ -140,6 +140,16 @@ pub enum JwtError {
         /// Nonce in the `JWT`
         actual_nonce: String,
     } = 315,
+
+    /// Supplied subject did not match the subject inside the `JWT`
+    #[error("Expected subject was not found in the JWT")]
+    SubjectMismatch {
+        /// Supplied subject
+        expected_subject: Option<String>,
+
+        /// Subject in the `JWT`
+        actual_subject: Option<String>,
+    } = 316,
 }
 
 /// JWT result used for the [`JwtError`]
