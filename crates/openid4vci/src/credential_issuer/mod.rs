@@ -366,6 +366,21 @@ pub struct EvaluateCredentialRequestOptions {
 
     /// Id of the client that will be checked whether it is equal to the `iss` field inside the
     /// `JWT` proof
+    ///
+    /// For the Pre-Authorized Code Grant Type, authentication of the client is OPTIONAL, as
+    /// described in Section 3.2.1 of OAuth 2.0 [RFC6749](https://www.rfc-editor.org/info/rfc6749)
+    /// and consequently, the "client_id" is only needed when a form of Client Authentication that
+    /// relies on the parameter is used.
+    ///
+    /// We deal with it being `OPTIONAL` by using the following algorithm:
+    ///
+    /// - If pre-authorized flow is used:
+    ///     - If `client_id` is supplied:
+    ///         - validate the `client_id` with the `iss` field in the `JWT`
+    ///     - if `client_id` is not supplied:
+    ///         - Do not validate even if the `iss` field is supplied within the `JWT`
+    /// - if authorized code flow is used:
+    ///     - validate the `client_id` with the `iss` field inside the `JWT`
     pub client_id: Option<String>,
 }
 
@@ -469,8 +484,13 @@ impl CredentialIssuer {
     ///
     /// # Errors
     ///
+    /// - When a credential offer is not supplied
+    /// - When authorization server metadata is supplied
     /// - When incorrect valdiation happens on the supplied input arguments
+    /// - when the `c_nonce` is expired
     /// - When a JWT is inside the proof and is not valid
+    /// - When the `client_id` is not inside the `JWT` as `iss`
+    /// - When the `issuer_metadata.credential_issuer` is not equal to `aud` inside the `JWT`
     pub fn evaluate_credential_request(
         issuer_metadata: &CredentialIssuerMetadata,
         credential_request: &CredentialRequest,
@@ -481,11 +501,9 @@ impl CredentialIssuer {
     ) -> CredentialIssuerResult<CredentialIssuerEvaluateRequestResponse> {
         issuer_metadata.validate()?;
 
-        if let Some(credential_offer) = credential_offer {
-            credential_offer.validate()?;
-        } else {
-            return Err(CredentialIssuerError::CredentialOfferMustBeSupplied);
-        };
+        let credential_offer =
+            credential_offer.ok_or(CredentialIssuerError::CredentialOfferMustBeSupplied)?;
+        credential_offer.validate()?;
 
         if let Some(authorization_server_metadata) = authorization_server_metadata {
             authorization_server_metadata.validate()?;
@@ -518,8 +536,38 @@ impl CredentialIssuer {
                 .map(|c| c.expected_c_nonce);
             jwt.check_nonce(expected_c_nonce)?;
 
-            let expected_issuer = evaluate_credential_request_options.and_then(|o| o.client_id);
-            jwt.check_iss(expected_issuer)?;
+            let expected_issuer = evaluate_credential_request_options
+                .clone()
+                .and_then(|o| o.client_id);
+
+            let should_validate_iss = match evaluate_credential_request_options {
+                Some(EvaluateCredentialRequestOptions { client_id, .. }) => {
+                    // We validate when the `client_id` has a value OR when the authorized code
+                    // flow is chosen.
+                    let should_validate = client_id.is_some()
+                        || credential_offer.grants.authorized_code_flow.is_some();
+
+                    // We do not validate when the `client_is` is none AND when the
+                    // pre-authorized code flow is used.
+                    let should_not_validate = client_id.is_none()
+                        && credential_offer.grants.pre_authorized_code_flow.is_some();
+
+                    // Here we choose the stricted combination which only results in no validation
+                    // when:
+                    //
+                    // 1. pre-authorized code flow is ONLY chosen
+                    // 2. supplied `client_id` is none
+                    //
+                    // Every other case will be validated
+                    should_validate || !should_not_validate
+                }
+                None => false,
+            };
+
+            if should_validate_iss {
+                jwt.check_iss(expected_issuer)?;
+            }
+
             jwt.check_aud(&issuer_metadata.credential_issuer)?;
 
             let (public_key, algorithm) = jwt.extract_key_and_alg(did_document)?;
@@ -897,7 +945,7 @@ mod test_evaluate_credential_request {
         }
     }
 
-    fn invalid_evaluate_credential_request_options_mismatch_issuer(
+    fn valid_evaluate_credential_request_options_pre_authorized_code_flow_and_no_client_id_to_check(
     ) -> EvaluateCredentialRequestOptions {
         EvaluateCredentialRequestOptions {
             c_nonce: Some(CNonceOptions {
@@ -1094,13 +1142,14 @@ mod test_evaluate_credential_request {
     }
 
     #[test]
-    fn should_not_evaluate_credential_request_with_issuer_mismatch() {
+    fn should_evaluate_credential_request_with_when_pre_authorized_code_flow_is_used_and_no_client_id(
+    ) {
         let issuer_metadata = valid_issuer_metadata();
         let credential_request = valid_credential_request();
         let did_document = valid_did_document();
         let credential_offer = valid_credential_offer();
         let evaluate_credential_request_options =
-            invalid_evaluate_credential_request_options_mismatch_issuer();
+            valid_evaluate_credential_request_options_pre_authorized_code_flow_and_no_client_id_to_check();
 
         let evaluated = CredentialIssuer::evaluate_credential_request(
             &issuer_metadata,
@@ -1111,13 +1160,7 @@ mod test_evaluate_credential_request {
             Some(evaluate_credential_request_options),
         );
 
-        assert_eq!(
-            evaluated,
-            Err(CredentialIssuerError::JwtError(JwtError::IssuerMismatch {
-                expected_iss_in_jwt: None,
-                actual_iss_in_jwt: Some("s6BhdRkqt3".to_owned())
-            }))
-        );
+        assert!(evaluated.is_ok());
     }
 
     #[test]
