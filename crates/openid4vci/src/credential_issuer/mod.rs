@@ -364,10 +364,8 @@ pub struct EvaluateCredentialRequestOptions {
     /// Additional nonce options for validation
     pub c_nonce: Option<CNonceOptions>,
 
-    /// Issuer id that will be used to check the `iss` field inside the `JWT`
-    pub issuer_id: Option<String>,
-
-    /// Id of the client that will be checked whether it is equal to the `sub` field inside the `JWT`
+    /// Id of the client that will be checked whether it is equal to the `iss` field inside the
+    /// `JWT` proof
     pub client_id: Option<String>,
 }
 
@@ -520,13 +518,9 @@ impl CredentialIssuer {
                 .map(|c| c.expected_c_nonce);
             jwt.check_nonce(expected_c_nonce)?;
 
-            let expected_issuer = evaluate_credential_request_options
-                .clone()
-                .and_then(|o| o.issuer_id);
+            let expected_issuer = evaluate_credential_request_options.and_then(|o| o.client_id);
             jwt.check_iss(expected_issuer)?;
-
-            let expected_subject = evaluate_credential_request_options.and_then(|o| o.client_id);
-            jwt.check_sub(expected_subject)?;
+            jwt.check_aud(&issuer_metadata.credential_issuer)?;
 
             let (public_key, algorithm) = jwt.extract_key_and_alg(did_document)?;
             let signature = jwt.extract_signature()?;
@@ -782,7 +776,18 @@ mod test_evaluate_credential_request {
 
     fn valid_issuer_metadata() -> CredentialIssuerMetadata {
         serde_json::from_value(serde_json::json!({
-            "credential_issuer": "01001110",
+            "credential_issuer": "https://server.example.com",
+            "credential_endpoint": "https://example.org",
+            "credentials_supported": [
+                valid_credential_format_profile(),
+            ],
+        }))
+        .expect("Unable to create issuer metadata")
+    }
+
+    fn invalid_issuer_metadata_wrong_credential_issuer() -> CredentialIssuerMetadata {
+        serde_json::from_value(serde_json::json!({
+            "credential_issuer": "some-invalid-id",
             "credential_endpoint": "https://example.org",
             "credentials_supported": [
                 valid_credential_format_profile(),
@@ -864,8 +869,7 @@ mod test_evaluate_credential_request {
                 expected_c_nonce: "tZignsnFbp".to_owned(),
                 c_nonce_created_at: Utc::now(),
             }),
-            issuer_id: Some("s6BhdRkqt3".to_owned()),
-            ..Default::default()
+            client_id: Some("s6BhdRkqt3".to_owned()),
         }
     }
 
@@ -877,8 +881,7 @@ mod test_evaluate_credential_request {
                 expected_c_nonce: "some_invalid_nonce".to_owned(),
                 c_nonce_created_at: Utc::now(),
             }),
-            issuer_id: Some("s6BhdRkqt3".to_owned()),
-            ..Default::default()
+            client_id: Some("s6BhdRkqt3".to_owned()),
         }
     }
 
@@ -890,8 +893,7 @@ mod test_evaluate_credential_request {
                 expected_c_nonce: "tZignsnFbp".to_owned(),
                 c_nonce_created_at: Utc::now() - Duration::hours(100),
             }),
-            issuer_id: Some("s6BhdRkqt3".to_owned()),
-            ..Default::default()
+            client_id: Some("s6BhdRkqt3".to_owned()),
         }
     }
 
@@ -903,21 +905,7 @@ mod test_evaluate_credential_request {
                 expected_c_nonce: "tZignsnFbp".to_owned(),
                 c_nonce_created_at: Utc::now(),
             }),
-            issuer_id: None,
-            ..Default::default()
-        }
-    }
-
-    fn invalid_evaluate_credential_request_options_mismatch_subject(
-    ) -> EvaluateCredentialRequestOptions {
-        EvaluateCredentialRequestOptions {
-            c_nonce: Some(CNonceOptions {
-                c_nonce_expires_in: 1000,
-                expected_c_nonce: "tZignsnFbp".to_owned(),
-                c_nonce_created_at: Utc::now(),
-            }),
-            issuer_id: Some("s6BhdRkqt3".to_owned()),
-            client_id: Some("invalid-subject".to_owned())
+            client_id: None,
         }
     }
 
@@ -1126,20 +1114,20 @@ mod test_evaluate_credential_request {
         assert_eq!(
             evaluated,
             Err(CredentialIssuerError::JwtError(JwtError::IssuerMismatch {
-                expected_issuer: None,
-                actual_issuer: Some("s6BhdRkqt3".to_owned())
+                expected_iss_in_jwt: None,
+                actual_iss_in_jwt: Some("s6BhdRkqt3".to_owned())
             }))
         );
     }
 
     #[test]
-    fn should_not_evaluate_credential_request_with_subject_mismatch() {
-        let issuer_metadata = valid_issuer_metadata();
+    fn should_not_evaluate_credential_request_with_credential_issuer_mismatch_in_metadata_and_proof(
+    ) {
+        let issuer_metadata = invalid_issuer_metadata_wrong_credential_issuer();
         let credential_request = valid_credential_request();
         let did_document = valid_did_document();
         let credential_offer = valid_credential_offer();
-        let evaluate_credential_request_options =
-            invalid_evaluate_credential_request_options_mismatch_subject();
+        let evaluate_credential_request_options = valid_evaluate_credential_request_options();
 
         let evaluated = CredentialIssuer::evaluate_credential_request(
             &issuer_metadata,
@@ -1152,10 +1140,12 @@ mod test_evaluate_credential_request {
 
         assert_eq!(
             evaluated,
-            Err(CredentialIssuerError::JwtError(JwtError::SubjectMismatch {
-                expected_subject: Some("invalid-subject".to_owned()),
-                actual_subject: None
-            }))
+            Err(CredentialIssuerError::JwtError(
+                JwtError::AudienceMismatch {
+                    expected_aud_in_jwt: "some-invalid-id".to_owned(),
+                    actual_aud_in_jwt: "https://server.example.com".to_owned()
+                }
+            ))
         );
     }
 }

@@ -264,7 +264,7 @@ impl ProofJwt {
         Ok(signature.as_bytes().to_vec())
     }
 
-    /// Check whether the nonce is in the in the `JWT`.
+    /// Check whether the nonce is in the in the `JWT` and valid
     ///
     /// # Errors
     ///
@@ -280,7 +280,7 @@ impl ProofJwt {
         }
     }
 
-    /// Check whether the `iss` is in the in the `JWT`.
+    /// Check whether the `iss` is in the in the `JWT` and valid
     ///
     /// # Errors
     ///
@@ -290,24 +290,24 @@ impl ProofJwt {
             Ok(())
         } else {
             Err(JwtError::IssuerMismatch {
-                expected_issuer: iss,
-                actual_issuer: self.body.issuer.clone(),
+                expected_iss_in_jwt: iss,
+                actual_iss_in_jwt: self.body.issuer.clone(),
             })
         }
     }
 
-    /// Check whether the `sub` is in the in the `JWT`.
+    /// Check whether the `aud` is in the in the `JWT`.
     ///
     /// # Errors
     ///
-    /// - When the `sub` from the `JWT` does not match the provided `iss`
-    pub fn check_sub(&self, sub: Option<String>) -> JwtResult<()> {
-        if self.body.subject == sub {
+    /// - When the `iss` from the `JWT` does not match the provided `iss`
+    pub fn check_aud(&self, credential_issuer_url: &str) -> JwtResult<()> {
+        if self.body.audience == credential_issuer_url {
             Ok(())
         } else {
-            Err(JwtError::SubjectMismatch {
-                expected_subject: sub,
-                actual_subject: self.body.subject.clone(),
+            Err(JwtError::AudienceMismatch {
+                expected_aud_in_jwt: credential_issuer_url.to_owned(),
+                actual_aud_in_jwt: self.body.audience.clone(),
             })
         }
     }
@@ -505,6 +505,7 @@ pub struct ProofJwtBody {
     #[serde(rename = "aud")]
     pub audience: String,
 
+    /// Subject of the claim.
     #[serde(rename = "sub")]
     pub subject: Option<String>,
 
@@ -538,8 +539,8 @@ pub struct ProofJwtBody {
 
 impl Validatable for ProofJwt {
     fn validate(&self) -> ValidationResult<()> {
-        self.body.validate()?;
         self.header.validate()?;
+        self.body.validate()?;
 
         Ok(())
     }
@@ -548,7 +549,7 @@ impl Validatable for ProofJwt {
 impl Validatable for ProofJwtHeader {
     fn validate(&self) -> ValidationResult<()> {
         // Check whether the `typ` is set to any casing of [`OPENID4VCI_PROOF_TYPE`]
-        if self.typ != OPENID4VCI_PROOF_TYPE {
+        if self.typ.to_lowercase() != OPENID4VCI_PROOF_TYPE {
             return Err(ValidationError::Any {
                 validation_message: "jwt header `typ` MUST of of value `openid4vci-proof+jwt`"
                     .to_owned(),
@@ -632,8 +633,8 @@ mod test_jwt {
         assert_eq!(
             res,
             Err(JwtError::IssuerMismatch {
-                actual_issuer: Some("s6BhdRkqt3".to_owned()),
-                expected_issuer: Some("invalid-id".to_owned())
+                actual_iss_in_jwt: Some("s6BhdRkqt3".to_owned()),
+                expected_iss_in_jwt: Some("invalid-id".to_owned())
             })
         );
     }
