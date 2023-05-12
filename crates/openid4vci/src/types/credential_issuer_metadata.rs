@@ -68,7 +68,7 @@ pub struct CredentialSupported {
     /// did:example. Support for all DID methods listed in Section 13 of
     /// [DID_Specification_Registries](https://www.w3.org/TR/did-spec-registries/) is indicated by
     /// sending a DID without any method-name.
-    pub cryptographic_binding_mehtods_supported: Option<Vec<String>>,
+    pub cryptographic_binding_methods_supported: Option<Vec<String>>,
 
     /// Array of case sensitive strings that identify the cryptographic suites that are supported
     /// for the cryptographic_binding_methods_supported. Cryptosuites for Credentials in jwt_vc
