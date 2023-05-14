@@ -17,7 +17,7 @@ where
     /// used to provide the client developer with additional information about the error.
     pub error_uri: Option<String>,
 
-    /// Optonal additional details containing metadata about the error
+    /// Optional additional details containing metadata about the error
     #[serde(flatten)]
     pub error_additional_details: Option<serde_json::Value>,
 }

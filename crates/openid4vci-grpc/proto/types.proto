@@ -2,78 +2,66 @@ syntax = "proto3";
 
 package openid4vci;
 
-// Represents a credential format profile as defined in the Rust code.
-message CredentialFormatProfile {
-  // Format name for the profile.
+message AuthorizedCodeFlow {
+  // Issuer state that MUST be the same, if supplied, from the authorization request
+  optional string issuer_state = 1;
+}
+
+message PreAuthorizedCodeFlow {
+  // The code representing the Credential Issuer's authorization for the Wallet to obtain
+  // Credentials of a certain type. This code MUST be short lived and single-use. If the Wallet
+  // decides to use the Pre-Authorized Code Flow, this parameter value MUST be included in the
+  // subsequent Token Request with the Pre-Authorized Code Flow.
+  string code = 1;
+
+  // Boolean value specifying whether the Credential Issuer expects presentation of a user PIN
+  // along with the Token Request in a Pre-Authorized Code Flow. Default is false. This PIN is
+  // intended to bind the Pre-Authorized Code to a certain transaction in order to prevent
+  // replay of this code by an attacker that, for example, scanned the QR code while standing
+  // behind the legit user. It is RECOMMENDED to send a PIN via a separate channel. If the
+  // Wallet decides to use the Pre-Authorized Code Flow, a PIN value MUST be sent in the
+  // user_pin parameter with the respective Token Request.
+  optional bool user_pin_required = 2;
+}
+
+message CredentialOrId {
+    oneof credential_or_id {
+        bytes credential = 1;
+        string id = 2;
+    }
+}
+
+message CredentialSuccessResponse {
+  // JSON string denoting the format of the issued Credential.
   string format = 1;
-  // Union field profile can contain different profile types.
-  oneof profile {
-    JwtVcJson jwt_vc_json = 2;
-    JwtVcJsonLd jwt_vc_json_ld = 3;
-    LdpVc ldp_vc = 4;
-    MsoMdoc mso_mdoc = 5;
-  }
+
+  // Contains issued Credential. present when `acceptance_token` is not returned
+  // Must be either a String or a JSON object, dependant on the `format` being requested in the credential request.
+  optional bytes credential = 2;
+
+  // A JSON string containing a security token subsequently used to obtain a Credential. MUST be
+  // present when credential is not returned.
+  optional string acceptance_token = 3;
+
+  // JSON string containing a nonce to be used to create a proof of possession of key material
+  optional string c_nonce = 4;
+
+  // JSON integer denoting the lifetime in seconds of the c_nonce.
+  optional uint32 c_nonce_expires_in = 5;
 }
 
-// Profile type for VC signed as a JWT, not using JSON-LD.
-message JwtVcJson {
-  // Format name for the profile.
-  string format = 1;
+message OAuthErrorResponse {
+  // Error code indicating why the request failed.
+  string error = 1;
 
-  // Types supported by the credential type.
-  repeated string types = 2;
-  // Key-value pairs representing the claim offered in the Credential.
-  map<string, CredentialSubject> credential_subject = 3;
-  // Order in which claims should be displayed by the Wallet.
-  repeated string order = 4;
-}
+  // Human-readable ASCII text providing additional information
+  optional string error_description = 2;
 
-// Profile type for VC signed as a JWT, using JSON-LD.
-message JwtVcJsonLd {
-  // Types supported by the credential type.
-  repeated string types = 1;
-  // Key-value pairs representing the claim offered in the Credential.
-  map<string, CredentialSubject> credential_subject = 2;
-  // Order in which claims should be displayed by the Wallet.
-  repeated string order = 3;
-}
 
-// Profile type for VC secured using Data Integrity, using JSON-LD.
-message LdpVc {
-  // JSON-LD context for the credential.
-  repeated string context = 1;
-  // Types supported by the credential type.
-  repeated string types = 2;
-  // Key-value pairs representing the claim offered in the Credential.
-  map<string, CredentialSubject> credential_subject = 3;
-  // Order in which claims should be displayed by the Wallet.
-  repeated string order = 4;
-}
+  // A URI identifying a human-readable web page with information about the error,
+  optional string error_uri = 3;
 
-// Profile type for credentials complying with ISO.18013-5.
-message MsoMdoc {
-  // Identifier for the credential type.
-  string doctype = 1;
-  // Key-value pairs representing the claims offered in the Credential.
-  map<string, CredentialSubject> claims = 2;
-  // Order in which claims should be displayed by the Wallet.
-  repeated string order = 3;
-}
-
-// Represents the display properties of a claim in the Credential for a certain language.
-message CredentialSubjectDisplay {
-  // Display name for the claim.
-  optional string name = 1;
-  // Language identifier represented as language tag values defined in BCP47.
-  optional string locale = 2;
-}
-
-// Represents a claim offered in the Credential.
-message CredentialSubject {
-  // Boolean indicating whether the claim must be present in the Credential.
-  optional bool mandatory = 1;
-  // Type of the claim value.
-  string value_type = 2;
-  // Display properties of the claim in the Credential for different languages.
-  repeated CredentialSubjectDisplay display = 3;
+  // Optional additional details containing metadata about the error
+  // NOTE: these properties MUST be flattened into the root of the response object
+  optional bytes error_additional_details = 4;
 }

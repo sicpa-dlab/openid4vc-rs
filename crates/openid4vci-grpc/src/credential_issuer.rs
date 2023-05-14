@@ -20,10 +20,12 @@ use openid4vci::credential_issuer::error::CredentialIssuerError;
 use openid4vci::credential_issuer::error_code::CredentialIssuerErrorCode;
 use openid4vci::credential_issuer::{
     AuthorizedCodeFlow, CNonce, CredentialIssuer, CredentialOffer, CredentialOrAcceptanceToken,
-    CredentialOrIds, EvaluateCredentialRequestOptions, PreAuthorizedCodeFlow,
+    EvaluateCredentialRequestOptions, PreAuthorizedCodeFlow,
 };
 use openid4vci::types::authorization_server_metadata::AuthorizationServerMetadata;
-use openid4vci::types::credential_issuer_metadata::CredentialIssuerMetadata;
+use openid4vci::types::credential_issuer_metadata::{
+    CredentialIssuerMetadata, CredentialSupported,
+};
 use openid4vci::types::credential_request::CredentialRequest;
 use openid4vci::Document;
 use tonic::{Request, Response};
@@ -48,15 +50,40 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
             credentials,
         } = request.into_inner();
 
-        let issuer_metadata = deserialize_slice::<CredentialIssuerMetadata>(&issuer_metadata)?;
+        // TODO: simplify this
+        if let Some(issuer_metadata) = issuer_metadata {
+            let issuer_metadata = CredentialIssuerMetadata {
+                authorization_server: issuer_metadata.authorization_server,
+                batch_credential_endpoint: issuer_metadata.batch_credential_endpoint,
+                credential_endpoint: issuer_metadata.credential_endpoint,
+                credential_issuer: issuer_metadata.credential_issuer,
+                credentials_supported: deserialize_slice::<Vec<CredentialSupported>>(
+                    issuer_metadata.credentials_supported,
+                ),
+                additional_fields: None,
+            };
 
-        let authorized_code_flow =
-            deserialize_optional_slice::<AuthorizedCodeFlow>(&authorized_code_flow)?;
+            let authorized_code_flow =
+                authorized_code_flow.map(|authorized_code_flow| AuthorizedCodeFlow {
+                    issuer_state: authorized_code_flow.issuer_state,
+                });
 
-        let pre_authorized_code_flow =
-            deserialize_optional_slice::<PreAuthorizedCodeFlow>(&pre_authorized_code_flow)?;
+            let pre_authorized_code_flow =
+                pre_authorized_code_flow.map(|pre_authorized_code_flow| PreAuthorizedCodeFlow {
+                    code: pre_authorized_code_flow.code,
+                    user_pin_required: pre_authorized_code_flow.user_pin_required,
+                });
 
-        let credentials = deserialize_slice::<CredentialOrIds>(&credentials)?;
+            // TODO: map credentials to CredentialOrIds
+        } else {
+            return Err(GrpcError::CredentialIssuerError(
+                CredentialIssuerError::ValidationError(
+                    openid4vci::validate::ValidationError::Any {
+                        validation_message: "Missing required 'issuer_metadata'".to_string(),
+                    },
+                ),
+            ));
+        }
 
         let response = match CredentialIssuer::create_offer(
             &issuer_metadata,

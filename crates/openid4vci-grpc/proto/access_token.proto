@@ -1,18 +1,27 @@
 syntax = "proto3";
 
 import "error.proto";
+import "types.proto";
 
 package openid4vci;
 
+// Service for working with access tokens. Can be used to evaluate access token requests,
+// and create access token responses.
 service AccessTokenService {
-  rpc CreateAccessTokenErrorResponse(CreateAccessTokenErrorResponseRequest)
-      returns (CreateAccessTokenErrorResponseResponse);
-  rpc CreateAccessTokenSuccessResponse(CreateAccessTokenSuccessResponseRequest)
-      returns (CreateAccessTokenSuccessResponseResponse);
+  // Evaluate an incoming access token request.
   rpc EvaluateAccessTokenRequest(EvaluateAccessTokenRequestRequest)
       returns (EvaluateAccessTokenRequestResponse);
+
+  // Create a successful access token response.
+  rpc CreateAccessTokenErrorResponse(CreateAccessTokenErrorResponseRequest)
+      returns (CreateAccessTokenErrorResponseResponse);
+
+  // Create an error access token response.
+  rpc CreateAccessTokenSuccessResponse(CreateAccessTokenSuccessResponseRequest)
+      returns (CreateAccessTokenSuccessResponseResponse);
 }
 
+// Request to create an access token error response.
 message CreateAccessTokenErrorResponseRequest {
   string error = 1;
   optional string error_description = 2;
@@ -20,6 +29,7 @@ message CreateAccessTokenErrorResponseRequest {
   optional bytes error_additional_details = 4;
 }
 
+// Response to create an access token error response.
 message CreateAccessTokenErrorResponseResponse {
   oneof response {
     Success success = 1;
@@ -27,21 +37,51 @@ message CreateAccessTokenErrorResponseResponse {
   }
 
   message Success {
-    bytes error_response = 1;
+    OAuthErrorResponse error_response = 1;
   }
 }
 
+// Request to create an access token success response.
+// NOTE: this message is a copy of `AccessTokenSuccessResponse`, but there's no inheritance
+// in proto, and it wouldn't be correct to use the same type (they're just the same at the moment)
 message CreateAccessTokenSuccessResponseRequest {
-  string access_token = 1;
-  string token_type = 2;
-  optional uint32 expires_in = 3;
-  optional string scope = 4;
-  optional string c_nonce = 5;
-  optional uint32 c_nonce_expires_in = 6;
-  optional bool authorization_pending = 7;
-  optional uint32 interval = 8;
+    // (OAuth2) The access token issued by the authorization server.
+    string access_token = 1;
+
+    // (OAuth2) The type of the token issued as described in Section 7.1 of the OAuth2 specification.
+    // Value is case insensitive.
+    string token_type = 2;
+
+    // (OAuth2) RECOMMENDED. The lifetime in seconds of the access token. For example, the value "3600"
+    // denotes that the access token will expire in one hour from the time the response was generated.
+    // If omitted, the authorization server SHOULD provide the expiration time via other means or
+    // document the default value.
+    optional uint32 expires_in = 3;
+
+    // (OAuth2) OPTIONAL, if identical to the scope requested by the client; otherwise, REQUIRED.
+    // The scope of the access token as described by Section 3.3 of the OAuth2 Specification.
+    optional string scope = 4;
+
+    // Nonce to be used to create a proof of possession of key material when requesting a Credential
+    // (see Section 7.2). When received, the Wallet MUST use this nonce value for its subsequent
+    // credential requests until the Credential Issuer provides a fresh nonce.
+    optional string c_nonce = 5;
+
+    // The lifetime in seconds of the `c_nonce`
+    optional uint32 c_nonce_expires_in = 6;
+
+    // In the Pre-Authorized Code Flow, the Token Request is still pending as the Credential Issuer
+    // is waiting for the End-User interaction to complete. The client SHOULD repeat the Token Request.
+    // Before each new request, the client MUST wait at least the number of seconds specified by the
+    // `interval` response parameter.
+    optional bool authorization_pending = 7;
+
+    // The minimum amount of time in seconds that the client SHOULD wait between polling requests to the
+    // Token Endpoint in the Pre-Authorized Code Flow. If no value is provided, clients MUST use 5 as the default.
+    optional uint32 interval = 8;
 }
 
+// Response to create an access token success response.
 message CreateAccessTokenSuccessResponseResponse {
   oneof response {
     Success success = 1;
@@ -49,24 +89,74 @@ message CreateAccessTokenSuccessResponseResponse {
   }
 
   message Success {
-    bytes success_response = 1;
+    AccessTokenSuccessResponse success_response = 1;
     string created_at = 2;
   }
+
+  message AccessTokenSuccessResponse {
+    // (OAuth2) The access token issued by the authorization server.
+    string access_token = 1;
+
+    // (OAuth2) The type of the token issued as described in Section 7.1 of the OAuth2 specification.
+    // Value is case insensitive.
+    string token_type = 2;
+
+    // (OAuth2) RECOMMENDED. The lifetime in seconds of the access token. For example, the value "3600"
+    // denotes that the access token will expire in one hour from the time the response was generated.
+    // If omitted, the authorization server SHOULD provide the expiration time via other means or
+    // document the default value.
+    optional uint32 expires_in = 3;
+
+    // (OAuth2) OPTIONAL, if identical to the scope requested by the client; otherwise, REQUIRED.
+    // The scope of the access token as described by Section 3.3 of the OAuth2 Specification.
+    optional string scope = 4;
+
+    // Nonce to be used to create a proof of possession of key material when requesting a Credential
+    // (see Section 7.2). When received, the Wallet MUST use this nonce value for its subsequent
+    // credential requests until the Credential Issuer provides a fresh nonce.
+    optional string c_nonce = 5;
+
+    // The lifetime in seconds of the `c_nonce`
+    optional uint32 c_nonce_expires_in = 6;
+
+    // In the Pre-Authorized Code Flow, the Token Request is still pending as the Credential Issuer
+    // is waiting for the End-User interaction to complete. The client SHOULD repeat the Token Request.
+    // Before each new request, the client MUST wait at least the number of seconds specified by the
+    // `interval` response parameter.
+    optional bool authorization_pending = 7;
+
+    // The minimum amount of time in seconds that the client SHOULD wait between polling requests to the
+    // Token Endpoint in the Pre-Authorized Code Flow. If no value is provided, clients MUST use 5 as the default.
+    optional uint32 interval = 8;
+  }
+
 }
 
+// Request to evaluate an access token request.
 message EvaluateAccessTokenRequestRequest {
   bytes access_token_request = 1;
   optional bytes credential_offer = 2;
-  optional bytes evaluate_access_token_request_options = 3;
+  optional EvaluateAccessTokenRequestOptions evaluate_access_token_request_options = 3;
+
+  message EvaluateAccessTokenRequestOptions { 
+    // Provided user code to validate against
+    optional uint64 user_code = 1;
+  }
 }
 
+// Response to evaluate an access token request.
 message EvaluateAccessTokenRequestResponse {
   oneof response {
     Success success = 1;
     Error error = 2;
   }
 
+  // Empty message (there's no fields in the response)
+  message EvaluateAccessTokenResponse {}
+
   message Success {
-    bytes success_response = 1;
+    EvaluateAccessTokenResponse success_response = 1;
   }
 }
+
+
