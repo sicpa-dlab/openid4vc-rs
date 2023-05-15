@@ -52,3 +52,23 @@ pub trait Validatable {
     /// - When the validation fails for the implementation
     fn validate(&self) -> Result<(), ValidationError>;
 }
+
+#[cfg(test)]
+mod test_validation {
+    use super::*;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize, Debug)]
+    struct Mock {
+        x: String,
+    }
+
+    #[test]
+    fn should_format_error_correctly() {
+        let j = "{\"hello\": \"world\"}";
+        let deserialize_error = serde_json::from_str::<Mock>(j).unwrap_err();
+        let validation_error: ValidationError = ValidationError::from(deserialize_error);
+
+        assert!(matches!(validation_error, ValidationError::Any { .. }));
+    }
+}

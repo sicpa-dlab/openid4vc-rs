@@ -143,8 +143,7 @@ impl ProofJwt {
     ///
     /// - When the [`ProofJwtBody::not_before`] is greater than [`chrono::Utc::now`]
     /// - When the [`ProofJwtBody::expires_at`] is smaller than [`chrono::Utc::now`]
-    /// - When the [`ProofJwtBody::issuer_claim`] is not equal to the provided `client_id`
-    pub fn verify(&self, client_id: Option<&str>) -> JwtResult<()> {
+    pub fn verify(&self) -> JwtResult<()> {
         let now = Utc::now();
 
         if let Some(not_before) = self.body.not_before {
@@ -165,14 +164,6 @@ impl ProofJwt {
             }
         }
 
-        let client_id = client_id.map(ToOwned::to_owned);
-        if self.body.issuer_claim != client_id {
-            return Err(JwtError::IssuerMismatch {
-                iss: self.body.issuer_claim.clone(),
-                client_id,
-            });
-        }
-
         Ok(())
     }
 
@@ -184,7 +175,7 @@ impl ProofJwt {
     /// - When did could not be transformed
     /// - When `jwk` is used
     /// - When `x5c` is used
-    pub fn extract_kid(&self) -> JwtResult<Option<String>> {
+    pub fn extract_did(&self) -> JwtResult<Option<String>> {
         if let Some(header) = &self.header.additional_header {
             match header {
                 ProofJwtAdditionalHeader::KeyId(key_id) => {
@@ -195,7 +186,7 @@ impl ProofJwt {
                         }
                     })?;
 
-                    Ok(Some(did.to_string()))
+                    Ok(Some(did.did))
                 }
                 ProofJwtAdditionalHeader::Jwk(jwk) => {
                     Err(JwtError::UnsupportedKeyTypeInJwtHeader {
@@ -273,7 +264,7 @@ impl ProofJwt {
         Ok(signature.as_bytes().to_vec())
     }
 
-    /// Check whether the nonce is in the in the `JWT`.
+    /// Check whether the nonce is in the in the `JWT` and valid
     ///
     /// # Errors
     ///
@@ -285,6 +276,38 @@ impl ProofJwt {
             Err(JwtError::NonceMismatch {
                 expected_nonce: nonce,
                 actual_nonce: self.body.nonce.clone(),
+            })
+        }
+    }
+
+    /// Check whether the `iss` is in the in the `JWT` and valid
+    ///
+    /// # Errors
+    ///
+    /// - When the `iss` from the `JWT` does not match the provided `iss`
+    pub fn check_iss(&self, iss: Option<String>) -> JwtResult<()> {
+        if self.body.issuer == iss {
+            Ok(())
+        } else {
+            Err(JwtError::IssuerMismatch {
+                expected_iss_in_jwt: iss,
+                actual_iss_in_jwt: self.body.issuer.clone(),
+            })
+        }
+    }
+
+    /// Check whether the `aud` is in the in the `JWT`.
+    ///
+    /// # Errors
+    ///
+    /// - When the `aud` from the `JWT` does not match the provided `aud`
+    pub fn check_aud(&self, credential_issuer_url: &str) -> JwtResult<()> {
+        if self.body.audience == credential_issuer_url {
+            Ok(())
+        } else {
+            Err(JwtError::AudienceMismatch {
+                expected_aud_in_jwt: credential_issuer_url.to_owned(),
+                actual_aud_in_jwt: self.body.audience.clone(),
             })
         }
     }
@@ -470,17 +493,21 @@ pub enum ProofJwtAdditionalHeader {
 
 /// Struct mapping of `jwt body` in the `proof types` as defined in section 7.2.1 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#proof_types)
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct ProofJwtBody {
     /// The value of this claim MUST be the client_id of the client making the credential request.
     /// This claim MUST be omitted if the Access Token authorizing the issuance call was obtained
     /// from a Pre-Authorized Code Flow through anonymous access to the Token Endpoint.
     #[serde(rename = "iss", skip_serializing_if = "Option::is_none")]
-    pub issuer_claim: Option<String>,
+    pub issuer: Option<String>,
 
     /// The value of this claim MUST be the Credential Issuer URL of the Credential Issuer.
     #[serde(rename = "aud")]
-    pub audience_claim: String,
+    pub audience: String,
+
+    /// Subject of the claim.
+    #[serde(rename = "sub")]
+    pub subject: Option<String>,
 
     /// The value of this claim MUST be the time at which the proof was issued using the syntax
     /// defined in [RFC7519](https://www.rfc-editor.org/rfc/rfc7519.txt).
@@ -512,8 +539,8 @@ pub struct ProofJwtBody {
 
 impl Validatable for ProofJwt {
     fn validate(&self) -> ValidationResult<()> {
-        self.body.validate()?;
         self.header.validate()?;
+        self.body.validate()?;
 
         Ok(())
     }
@@ -522,7 +549,7 @@ impl Validatable for ProofJwt {
 impl Validatable for ProofJwtHeader {
     fn validate(&self) -> ValidationResult<()> {
         // Check whether the `typ` is set to any casing of [`OPENID4VCI_PROOF_TYPE`]
-        if self.typ != OPENID4VCI_PROOF_TYPE {
+        if self.typ.to_lowercase() != OPENID4VCI_PROOF_TYPE {
             return Err(ValidationError::Any {
                 validation_message: "jwt header `typ` MUST of of value `openid4vci-proof+jwt`"
                     .to_owned(),
@@ -577,8 +604,8 @@ mod test_jwt {
             ))
         );
 
-        assert_eq!(jwt.body.issuer_claim, Some("s6BhdRkqt3".to_owned()));
-        assert_eq!(jwt.body.audience_claim, "https://server.example.com");
+        assert_eq!(jwt.body.issuer, Some("s6BhdRkqt3".to_owned()));
+        assert_eq!(jwt.body.audience, "https://server.example.com");
         assert_eq!(jwt.body.nonce, "tZignsnFbp");
 
         // Here is a different timestamp used as in the test vector, as the data there is
@@ -591,7 +618,7 @@ mod test_jwt {
         let jwt = "eyJraWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxYzI3NmUxMmVjMjEva2V5cy8xIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9";
 
         let jwt = ProofJwt::from_str(jwt).expect("Unable to decode jwt");
-        let res = jwt.verify(Some("s6BhdRkqt3"));
+        let res = jwt.verify();
 
         assert!(res.is_ok());
     }
@@ -601,13 +628,13 @@ mod test_jwt {
         let jwt = "eyJraWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxYzI3NmUxMmVjMjEva2V5cy8xIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9";
 
         let jwt = ProofJwt::from_str(jwt).expect("Unable to decode jwt");
-        let res = jwt.verify(Some("invalid-id"));
+        let res = jwt.check_iss(Some("invalid-id".to_owned()));
 
         assert_eq!(
             res,
             Err(JwtError::IssuerMismatch {
-                iss: Some("s6BhdRkqt3".to_owned()),
-                client_id: Some("invalid-id".to_owned())
+                actual_iss_in_jwt: Some("s6BhdRkqt3".to_owned()),
+                expected_iss_in_jwt: Some("invalid-id".to_owned())
             })
         );
     }
@@ -621,12 +648,11 @@ mod test_jwt {
 
         let jwt = ProofJwt {
             body: ProofJwtBody {
-                issuer_claim: None,
-                audience_claim: "aud".to_owned(),
+                audience: "aud".to_owned(),
                 issued_at: now,
                 nonce: "nonce".to_owned(),
-                not_before: None,
                 expires_at: Some(past),
+                ..Default::default()
             },
             header: ProofJwtHeader {
                 typ: "JWT".to_owned(),
@@ -636,7 +662,7 @@ mod test_jwt {
             signature: None,
         };
 
-        let res = jwt.verify(None);
+        let res = jwt.verify();
 
         assert!(matches!(res, Err(JwtError::NotValidAnymore { .. })));
     }
@@ -650,12 +676,11 @@ mod test_jwt {
 
         let jwt = ProofJwt {
             body: ProofJwtBody {
-                issuer_claim: None,
-                audience_claim: "aud".to_owned(),
+                audience: "aud".to_owned(),
                 issued_at: now,
                 nonce: "nonce".to_owned(),
                 not_before: Some(future),
-                expires_at: None,
+                ..Default::default()
             },
             header: ProofJwtHeader {
                 typ: "JWT".to_owned(),
@@ -665,7 +690,7 @@ mod test_jwt {
             signature: None,
         };
 
-        let res = jwt.verify(None);
+        let res = jwt.verify();
 
         assert!(matches!(res, Err(JwtError::NotYetValid { .. })));
     }
