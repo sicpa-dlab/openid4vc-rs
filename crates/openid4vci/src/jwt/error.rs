@@ -33,14 +33,15 @@ pub enum JwtError {
         now: DateTime<Utc>,
     } = 302,
 
-    /// Provided issuer, `client_id`, does not match the `iss` field
-    #[error("`iss` field in the body mismatched with provided issuer")]
+    /// Provided issuer, `issuer_id`, does not match the `iss` field. The value of this claim MUST
+    /// be the client_id of the client making the credential request.
+    #[error("`iss` field in the body mismatched with provided client id")]
     IssuerMismatch {
-        /// issuer id in the JWT
-        iss: Option<String>,
+        /// Supplied `client_id`
+        expected_iss_in_jwt: Option<String>,
 
-        /// User provided client id that must match the `iss`
-        client_id: Option<String>,
+        /// `iss` in the `JWT`
+        actual_iss_in_jwt: Option<String>,
     } = 303,
 
     /// Could not find a specific key in the header
@@ -140,6 +141,17 @@ pub enum JwtError {
         /// Nonce in the `JWT`
         actual_nonce: String,
     } = 315,
+
+    //// Supplied `credential_issuer_url` did not match the `aud` inside the `JWT`. The value of
+    ///this claim MUST be the Credential Issuer URL of the Credential Issuer.
+    #[error("`aud` field in the body mismatched with provided credential issuer url")]
+    AudienceMismatch {
+        /// Supplied `credential_issuer_url`
+        expected_aud_in_jwt: String,
+
+        /// `aud` in the `JWT`
+        actual_aud_in_jwt: String,
+    } = 316,
 }
 
 /// JWT result used for the [`JwtError`]

@@ -410,7 +410,7 @@ mod credential_issuer_tests {
     #[tokio::test]
     async fn should_pre_evaluate_request() {
         let expected = pre_evaluate_credential_request_response::Success {
-            did: Some("did:example:ebfeb1f712ebc6f1c276e12ec21/keys/1".to_owned()),
+            did: Some("did:example:ebfeb1f712ebc6f1c276e12ec21".to_owned()),
         };
 
         let issuer = GrpcCredentialIssuer::default();
@@ -488,7 +488,7 @@ mod credential_issuer_tests {
         });
 
         let issuer_metadata = serde_json::json!({
-            "credential_issuer": "test",
+            "credential_issuer": "https://server.example.com",
             "credential_endpoint": "https://example.org",
             "credentials_supported": [
                 &cfp
@@ -555,7 +555,7 @@ mod credential_issuer_tests {
             .expect("Unable to serialize credential request");
 
         let credential_offer = CredentialOffer {
-            credential_issuer: "me".to_owned(),
+            credential_issuer: "https://server.example.com".to_owned(),
             credentials: CredentialOrIds::new(vec![]),
             grants: CredentialOfferGrants {
                 authorized_code_flow: Some(AuthorizedCodeFlow { issuer_state: None }),
@@ -575,6 +575,7 @@ mod credential_issuer_tests {
                 c_nonce_expires_in: 1000,
                 c_nonce_created_at: Utc::now(),
             }),
+            client_id: Some("s6BhdRkqt3".to_owned()),
         };
 
         let options = serde_json::to_vec(&options).expect("Unable to serialize options");
@@ -597,7 +598,13 @@ mod credential_issuer_tests {
         let response = match response {
             evaluate_credential_request_response::Response::Success(s) => s.proof_of_possession,
             evaluate_credential_request_response::Response::Error(e) => {
-                panic!("{:#?}", e.description)
+                let additional_information = e.additional_information();
+                let additional_information: serde_json::Value =
+                    deserialize_slice(additional_information).expect("Unable to deserialize");
+                panic!(
+                    "[ERROR]: {:#?} \n info: {:#?}",
+                    e.description, additional_information
+                );
             }
         };
 

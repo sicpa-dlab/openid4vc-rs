@@ -88,6 +88,9 @@ pub enum CredentialIssuerError {
         /// Timestamp of when the nonce expires
         expiry_timestamp: DateTime<Utc>,
     } = 111,
+
+    #[error("The credential request does not contain a JWT proof")]
+    NoProofInCredentialRequest = 112,
 }
 
 error_impl!(CredentialIssuerError, CredentialIssuerResult);
