@@ -15,7 +15,7 @@ pub enum LinkedDataContext {
     String(String),
 
     /// Contains a mapping from term -> IRI which can be a string or any JSON
-    Map(HashMap<String, LinkedDataContext>),
+    Map(HashMap<String, serde_json::Value>),
 }
 
 /// A struct mapping a `credential` type as defined in Appendix E in the [openid4vci
