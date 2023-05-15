@@ -5,11 +5,11 @@ use serde_json::Value;
 
 use crate::validate::{Validatable, ValidationError};
 
-use super::credential::CredentialFormatProfile;
+use super::{jwt_vc_json, jwt_vc_json_ld, ldp_vc, mso_mdoc};
 
 /// Struct mapping the `issuer_metadata` as defined in section 10.2.3 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-10.2.3)
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct CredentialIssuerMetadata {
     /// The Credential Issuer's identifier
     pub credential_issuer: String,
@@ -40,19 +40,37 @@ pub struct CredentialIssuerMetadata {
     pub additional_fields: Option<HashMap<String, Value>>,
 }
 
+/// display properties of a Credential Issuer for a certain language.
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialIssuerMetadataDisplay {
+    /// String value of a display name for the Credential Issuer.
+    pub name: Option<String>,
+
+    /// String value that identifies the language of this object represented as a language tag
+    /// taken from values defined in BCP47 [RFC5646](https://www.rfc-editor.org/info/rfc5646).
+    /// There MUST be only one object with the same language identifier
+    pub locale: Option<String>,
+
+    /// All the remaining fields that are not captured in the other fields.
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    pub additional_fields: Option<HashMap<String, Value>>,
+}
+
 /// Struct mapping the `credential_supported` as defined in section 10.2.3.1 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#credential-metadata-object)
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct CredentialSupported {
     /// A JSON string identifying the format of this credential, e.g. jwt_vc_json or ldp_vc.
     /// Depending on the format value, the object contains further elements defining the type and
     /// (optionally) particular claims the credential MAY contain, and information how to display
     /// the credential.
     #[serde(flatten)]
-    pub format: CredentialFormatProfile,
+    pub format: CredentialIssuerMetadataFormat,
 
     /// A JSON string identifying the respective object. The value MUST be unique across all
     /// `credentials_supported` entries in the Credential Issuer Metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
 
     /// Array of case sensitive strings that identify how the Credential is bound to the identifier
@@ -68,7 +86,8 @@ pub struct CredentialSupported {
     /// did:example. Support for all DID methods listed in Section 13 of
     /// [DID_Specification_Registries](https://www.w3.org/TR/did-spec-registries/) is indicated by
     /// sending a DID without any method-name.
-    pub cryptographic_binding_mehtods_supported: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cryptographic_binding_methods_supported: Option<Vec<String>>,
 
     /// Array of case sensitive strings that identify the cryptographic suites that are supported
     /// for the cryptographic_binding_methods_supported. Cryptosuites for Credentials in jwt_vc
@@ -77,18 +96,51 @@ pub struct CredentialSupported {
     /// Cryptosuites for Credentials in ldp_vc format should use signature suites names defined in
     /// [Linked Data Cryptographic Suite
     /// Registry](https://w3c-ccg.github.io/ld-cryptosuite-registry/).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cryptographic_suites_supported: Option<Vec<String>>,
 
     ///  An array of objects, where each object contains the display properties of the supported
     ///  credential for a certain language. Below is a non-exhaustive list of parameters that MAY
     ///  be included. Note that the display name of the supported credential is obtained from
     ///  display.name and individual claim names from claims.display.name values.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub display: Option<Vec<DisplayProperties>>,
+}
+
+/// TODO
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(tag = "format")]
+pub enum CredentialIssuerMetadataFormat {
+    /// `jwt_vc_json`
+    ///
+    /// VC signed as a JWT, not using JSON-LD
+    #[serde(rename = "jwt_vc_json")]
+    JwtVcJson(jwt_vc_json::CredentialIssuerMetadata),
+
+    /// `jwt_vc_json-ld`
+    ///
+    /// VC signed as a JWT, using JSON-LD
+    #[serde(rename = "jwt_vc_json-ld")]
+    JwtVcJsonLd(jwt_vc_json_ld::CredentialIssuerMetadata),
+
+    /// `ldp_vc`
+    ///
+    /// VC secured using Data Integrity, using JSON-LD, with proof suite requiring Linked Data
+    /// canonicalization
+    #[serde(rename = "ldp_vc")]
+    LdpVc(ldp_vc::CredentialIssuerMetadata),
+
+    /// `mso_mdoc`
+    ///
+    /// Credential Format Profile for credentials complying with
+    /// [ISO.18013-5](https://www.iso.org/standard/69084.html)
+    #[serde(rename = "mso_mdoc")]
+    MsoMdoc(mso_mdoc::CredentialIssuerMetadata),
 }
 
 /// Struct mapping the `display` type as defined in section 10.2.3.1 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-10.2.3.1)
-#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct DisplayProperties {
     /// display name for the Credential.
     pub name: String,
@@ -97,31 +149,38 @@ pub struct DisplayProperties {
     /// taken from values defined in BCP47 [RFC5646](https://www.rfc-editor.org/rfc/rfc5646.txt).
     /// Multiple display objects MAY be included for separate languages. There MUST be only one
     /// object with the same language identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub locale: Option<String>,
 
     /// A JSON object with information about the logo of the Credential
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub logo: Option<DisplayLogo>,
 
     /// String value of a description of the Credential.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
     /// String value of a background color of the Credential represented as numerical color values
     /// defined in CSS Color Module Level 37 [CSS-Color](https://www.w3.org/TR/css-color-3/).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub background_color: Option<String>,
 
     /// String value of a text color of the Credential represented as numerical color values
     /// defined in CSS Color Module Level 37 [CSS-Color](https://www.w3.org/TR/css-color-3/).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub text_color: Option<String>,
 }
 
 /// Struct mapping the `logo` type as defined in section 10.2.3.1 of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-10.2.3.1)
-#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct DisplayLogo {
     /// URL where the Wallet can obtain a logo of the Credential from the Credential Issuer.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
 
     /// String value of an alternative text of a logo image.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub alt_text: Option<String>,
 }
 
@@ -158,8 +217,6 @@ impl Validatable for CredentialIssuerMetadata {
 
 impl Validatable for CredentialSupported {
     fn validate(&self) -> Result<(), ValidationError> {
-        self.format.validate()?;
-
         if let Some(display) = &self.display {
             for property in display {
                 property.validate()?;

@@ -128,9 +128,8 @@ impl TryInto<String> for &ProofJwt {
 
         jwt.push(s_header);
         jwt.push(s_body);
-        if let Some(s) = &self.signature {
-            jwt.push(s.clone());
-        }
+        let signature = self.signature.clone().unwrap_or_default();
+        jwt.push(signature);
 
         Ok(jwt.join("."))
     }

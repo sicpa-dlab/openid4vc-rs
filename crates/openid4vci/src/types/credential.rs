@@ -7,6 +7,8 @@ use crate::{
     validate::{Validatable, ValidationError},
 };
 
+use super::{jwt_vc_json, jwt_vc_json_ld, ldp_vc, mso_mdoc};
+
 /// Linked data context used for JSON-LD credentials
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(untagged)]
@@ -166,6 +168,7 @@ impl Validatable for CredentialFormatProfile {
 /// format as specified in Appendix E of the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#name-credential-format-profiles).
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(untagged)]
 pub enum CredentialFormatProfileOrEncoded {
     /// [`CredentialFormatProfile`]
     CredentialFormatProfile(CredentialFormatProfile),
@@ -194,10 +197,10 @@ impl CredentialFormatProfile {
     #[must_use]
     pub fn get_format_name(&self) -> String {
         let s = match self {
-            Self::JwtVcJson { .. } => "jwt_vc_json",
-            Self::JwtVcJsonLd { .. } => "jwt_vc_json-ld",
-            Self::LdpVc { .. } => "ldp_vc",
-            Self::MsoMdoc { .. } => "mso_mdoc",
+            Self::JwtVcJson { .. } => jwt_vc_json::CREDENTIAL_FORMAT_IDENTIFIER,
+            Self::JwtVcJsonLd { .. } => jwt_vc_json_ld::CREDENTIAL_FORMAT_IDENTIFIER,
+            Self::LdpVc { .. } => ldp_vc::CREDENTIAL_FORMAT_IDENTIFIER,
+            Self::MsoMdoc { .. } => mso_mdoc::CREDENTIAL_FORMAT_IDENTIFIER,
         };
 
         s.to_owned()

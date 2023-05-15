@@ -98,7 +98,7 @@ services is done with gRPC.
 
 ### Pre-Authorized Issuance using `openid4vci`
 
-```ignore
+```sh
 +--------------+   +-----------+                                    +-------------------+
 | User         |   |   Wallet  |                                    | Credential Issuer |
 +--------------+   +-----------+                                    +-------------------+

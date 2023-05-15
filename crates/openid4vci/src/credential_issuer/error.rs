@@ -1,6 +1,6 @@
-use crate::jwt::error::JwtError;
-use crate::types::credential::CredentialFormatProfile;
+use crate::types::credential_request::CredentialRequestFormat;
 use crate::validate::ValidationError;
+use crate::{jwt::error::JwtError, types::credential_issuer_metadata::CredentialSupported};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use thiserror::Error;
@@ -46,10 +46,10 @@ pub enum CredentialIssuerError {
     #[error("Requested credential not found in issuer metadata")]
     InvalidRequestedCredential {
         /// Boxed, for size, requested credential format
-        requested_credential: Box<CredentialFormatProfile>,
+        requested_credential: Box<CredentialRequestFormat>,
 
         /// issuer supported credential formats
-        supported_formats: Vec<CredentialFormatProfile>,
+        supported_formats: Vec<CredentialSupported>,
     } = 105,
 
     #[error("`c_nonce_expires_in` is not valid anymore.")]
@@ -111,7 +111,10 @@ mod credential_issuer_error_tests {
 
         assert!(error_information.code == 100);
         assert!(error_information.name == "ValidationError");
-        assert!(error_information.description == "some error");
+        assert!(
+            error_information.description
+                == "An error occurred during validation, serialization or deserialization"
+        );
         assert!(
             error_information.additional_information
                 == Some(serde_json::json!({

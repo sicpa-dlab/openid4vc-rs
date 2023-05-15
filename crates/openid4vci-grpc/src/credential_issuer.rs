@@ -19,12 +19,13 @@ use crate::{
 use openid4vci::credential_issuer::error::CredentialIssuerError;
 use openid4vci::credential_issuer::error_code::CredentialIssuerErrorCode;
 use openid4vci::credential_issuer::{
-    AuthorizedCodeFlow, CNonce, CredentialIssuer, CredentialOffer, CredentialOrAcceptanceToken,
-    CredentialOrIds, EvaluateCredentialRequestOptions, PreAuthorizedCodeFlow,
+    CNonce, CredentialIssuer, CredentialOrAcceptanceToken, EvaluateCredentialRequestOptions,
 };
 use openid4vci::types::authorization_server_metadata::AuthorizationServerMetadata;
 use openid4vci::types::credential_issuer_metadata::CredentialIssuerMetadata;
+use openid4vci::types::credential_offer::{CredentialOffer, CredentialOfferFormatOrId};
 use openid4vci::types::credential_request::CredentialRequest;
+use openid4vci::types::grants::{AuthorizedCodeFlow, PreAuthorizedCodeFlow};
 use openid4vci::Document;
 use tonic::{Request, Response};
 
@@ -56,7 +57,7 @@ impl CredentialIssuerService for GrpcCredentialIssuer {
         let pre_authorized_code_flow =
             deserialize_optional_slice::<PreAuthorizedCodeFlow>(&pre_authorized_code_flow)?;
 
-        let credentials = deserialize_slice::<CredentialOrIds>(&credentials)?;
+        let credentials = deserialize_slice::<Vec<CredentialOfferFormatOrId>>(&credentials)?;
 
         let response = match CredentialIssuer::create_offer(
             &issuer_metadata,
@@ -251,7 +252,11 @@ mod credential_issuer_tests {
     use chrono::Utc;
     use openid4vci::{
         credential_issuer::{CNonceOptions, CredentialOfferGrants},
-        types::{credential::CredentialFormatProfile, credential_request::CredentialRequestProof},
+        types::{
+            credential_request::{CredentialRequestFormat, CredentialRequestProof},
+            grants::{AuthorizedCodeFlow, PreAuthorizedCodeFlow},
+            ldp_vc::{self, CredentialDefinition},
+        },
     };
 
     use crate::grpc_openid4vci::Error;
@@ -420,12 +425,8 @@ mod credential_issuer_tests {
             proof_type: "jwt".to_owned(),
             jwt: "eyJraWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxYzI3NmUxMmVjMjEva2V5cy8xIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJvcGVuaWQ0dmNpLXByb29mK2p3dCJ9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
         }),
-        format: CredentialFormatProfile::LdpVc {
-            context: vec![],
-            types: vec![],
-            credential_subject: None,
-            order: None,
-        },
+        format: openid4vci::types::credential_request::CredentialRequestFormat::LdpVc(ldp_vc::CredentialRequest { credential_definition: CredentialDefinition {types: vec![], context: vec![]} })
+        ,
     };
 
         let credential_request = serde_json::to_vec(&credential_request)
@@ -503,12 +504,7 @@ mod credential_issuer_tests {
             proof_type: "jwt".to_owned(),
             jwt: "ewogICJraWQiOiAiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjejZNa3BUSFI4Vk5zQnhZQUFXSHV0MkdlYWRkOWpTd3VCVjh4Um9BbndXc2R2a3RIIiwKICAiYWxnIjogIkVkRFNBIiwKICAidHlwIjogIm9wZW5pZDR2Y2ktcHJvb2Yrand0Igp9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned()
         }),
-        format: CredentialFormatProfile::LdpVc {
-            context: vec![],
-            types: vec![],
-            credential_subject: None,
-            order: None,
-        },
+        format:  CredentialRequestFormat::LdpVc(ldp_vc::CredentialRequest { credential_definition: CredentialDefinition { context: vec![], types: vec![] } })
     };
 
         let did_document = serde_json::json!({
@@ -556,7 +552,7 @@ mod credential_issuer_tests {
 
         let credential_offer = CredentialOffer {
             credential_issuer: "https://server.example.com".to_owned(),
-            credentials: CredentialOrIds::new(vec![]),
+            credentials: vec![],
             grants: CredentialOfferGrants {
                 authorized_code_flow: Some(AuthorizedCodeFlow { issuer_state: None }),
                 pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {

@@ -1,6 +1,9 @@
 //! Example client package
 
-use openid4vci::types::credential_request::{CredentialRequest, CredentialRequestProof};
+use openid4vci::types::credential_request::{
+    CredentialRequest, CredentialRequestFormat, CredentialRequestProof,
+};
+use openid4vci::types::ldp_vc::{self, CredentialDefinition};
 use openid4vci::validate::ValidationError;
 use openid4vci::Document;
 use openid4vci_grpc::access_token_client::AccessTokenServiceClient;
@@ -106,12 +109,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             proof_type: "jwt".to_owned(),
             jwt: "ewogICJraWQiOiAiZGlkOmtleTp6RG5hZXJEYVRGNUJYRWF2Q3JmUlpFazMxNmRwYkxzZlBEWjNXSjVoUlRQRlUyMTY5I3pEbmFlckRhVEY1QlhFYXZDcmZSWkVrMzE2ZHBiTHNmUERaM1dKNWhSVFBGVTIxNjkiLAogICJhbGciOiAiRWREU0EiLAogICJ0eXAiOiAib3BlbmlkNHZjaS1wcm9vZitqd3QiCn0.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
         }),
-        format: openid4vci::types::credential::CredentialFormatProfile::LdpVc {
-            context: vec![],
-            types: vec![],
-            credential_subject: None,
-            order: None,
-        },
+        format: CredentialRequestFormat::LdpVc(ldp_vc::CredentialRequest { credential_definition: CredentialDefinition {types
+        : vec![],context: vec![]}  }
+        ),
     };
     let credential_request = serde_json::to_vec(&credential_request)?;
 
@@ -150,12 +150,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             proof_type: "jwt".to_owned(),
             jwt: "ewogICJraWQiOiAiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjejZNa3BUSFI4Vk5zQnhZQUFXSHV0MkdlYWRkOWpTd3VCVjh4Um9BbndXc2R2a3RIIiwKICAiYWxnIjogIkVkRFNBIiwKICAidHlwIjogIm9wZW5pZDR2Y2ktcHJvb2Yrand0Igp9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
         }),
-        format: openid4vci::types::credential::CredentialFormatProfile::LdpVc {
-            context: vec![],
-            types: vec![],
-            credential_subject: None,
-            order: None,
-        },
+        format: CredentialRequestFormat::LdpVc(ldp_vc::CredentialRequest { credential_definition: CredentialDefinition { context: vec![], types: vec![] } })
+        ,
     };
     let credential_request = serde_json::to_vec(&credential_request)?;
 

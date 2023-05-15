@@ -3,11 +3,11 @@ use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::credential_issuer::AuthorizedCodeFlow;
-use crate::credential_issuer::CredentialOffer;
-use crate::credential_issuer::CredentialOfferGrants;
-use crate::credential_issuer::PreAuthorizedCodeFlow;
 use crate::error_response::ErrorResponse;
+use crate::types::credential_offer::CredentialOffer;
+use crate::types::grants::AuthorizedCodeFlow;
+use crate::types::grants::Grants;
+use crate::types::grants::PreAuthorizedCodeFlow;
 use crate::types::token_type::AccessTokenType;
 use crate::validate::Validatable;
 use crate::validate::ValidationError;
@@ -40,26 +40,32 @@ pub struct AccessTokenSuccessResponse {
     /// (OAuth2) RECOMMENDED. The lifetime in seconds of the access token.  For example, the value "3600" denotes that the access token will
     /// expire in one hour from the time the response was generated. If omitted, the authorization server SHOULD provide the
     /// expiration time via other means or document the default value.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_in: Option<u32>,
 
     /// (OAuth2) OPTIONAL, if identical to the scope requested by the client; otherwise, REQUIRED.
     /// The scope of the access token as described by Section 3.3 of the [OAuth2 Specification](https://www.rfc-editor.org/rfc/rfc6749.html#section-3.3).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
 
     /// Nonce to be used to create a proof of possession of key material when requesting a Credential (see Section 7.2). When received,
     /// the Wallet MUST use this nonce value for its subsequent credential requests until the Credential Issuer provides a fresh nonce.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub c_nonce: Option<String>,
 
     /// The lifetime in seconds of the `c_nonce`
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub c_nonce_expires_in: Option<u32>,
 
     /// In the Pre-Authorized Code Flow, the Token Request is still pending as the Credential Issuer is waiting
     /// for the End-User interaction to complete. The client SHOULD repeat the Token Request. Before each new request,
     /// the client MUST wait at least the number of seconds specified by the `interval` response parameter.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub authorization_pending: Option<bool>,
 
     /// The minimum amount of time in seconds that the client SHOULD wait between polling requests to the
     /// Token Endpoint in the Pre-Authorized Code Flow. If no value is provided, clients MUST use 5 as the default.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub interval: Option<u32>,
 }
 
@@ -94,6 +100,7 @@ pub enum GrantType {
         /// was set to true in the [`CredentialOffer`]. The string value MUST consist of maximum 8
         /// numeric characters (the numbers 0 - 9). This parameter MUST only be used, if the
         /// grant_type is `urn:ietf:params:oauth:grant-type:pre-authorized_code`.
+        #[serde(skip_serializing_if = "Option::is_none")]
         user_pin: Option<u64>,
     },
 }
@@ -140,6 +147,7 @@ impl Validatable for AccessTokenRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct EvaluateAccessTokenRequestOptions {
     /// Provided user code to validate against
+    #[serde(skip_serializing_if = "Option::is_none")]
     expected_user_pin: Option<u64>,
 }
 
@@ -213,7 +221,7 @@ impl AccessToken {
             };
 
         if let Some(credential_offer) = credential_offer {
-            let CredentialOfferGrants {
+            let Grants {
                 authorized_code_flow,
                 pre_authorized_code_flow,
             } = credential_offer.grants;
@@ -308,7 +316,7 @@ impl AccessToken {
 
 #[cfg(test)]
 mod test_access_token_evaluate_request {
-    use crate::credential_issuer::{AuthorizedCodeFlow, CredentialOrIds, PreAuthorizedCodeFlow};
+    use crate::credential_issuer::{AuthorizedCodeFlow, PreAuthorizedCodeFlow};
 
     use super::*;
 
@@ -322,7 +330,7 @@ mod test_access_token_evaluate_request {
         };
         let credential_offer = CredentialOffer {
             credential_issuer: "me".to_owned(),
-            credentials: CredentialOrIds::new(vec![]),
+            credentials: vec![],
             grants: CredentialOfferGrants {
                 authorized_code_flow: Some(AuthorizedCodeFlow { issuer_state: None }),
                 pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
@@ -372,12 +380,12 @@ mod test_access_token_evaluate_request {
         let access_token_request = AccessTokenRequest {
             grant_type: GrantType::PreAuthorizedCodeFlow {
                 pre_authorized_code: "0123".to_owned(),
-                user_pin: Some(123213),
+                user_pin: Some(123_213),
             },
         };
         let credential_offer = CredentialOffer {
             credential_issuer: "me".to_owned(),
-            credentials: CredentialOrIds::new(vec![]),
+            credentials: vec![],
             grants: CredentialOfferGrants {
                 authorized_code_flow: None,
                 pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
@@ -405,12 +413,12 @@ mod test_access_token_evaluate_request {
         let access_token_request = AccessTokenRequest {
             grant_type: GrantType::PreAuthorizedCodeFlow {
                 pre_authorized_code: "0123".to_owned(),
-                user_pin: Some(123213),
+                user_pin: Some(123_213),
             },
         };
         let credential_offer = CredentialOffer {
             credential_issuer: "me".to_owned(),
-            credentials: CredentialOrIds::new(vec![]),
+            credentials: vec![],
             grants: CredentialOfferGrants {
                 authorized_code_flow: None,
                 pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
@@ -421,7 +429,7 @@ mod test_access_token_evaluate_request {
         };
 
         let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
-            expected_user_pin: Some(123213),
+            expected_user_pin: Some(123_213),
         };
 
         let output = AccessToken::evaluate_access_token_request(
@@ -450,7 +458,7 @@ mod test_access_token_evaluate_request {
 
         let credential_offer = CredentialOffer {
             credential_issuer: "me".to_owned(),
-            credentials: CredentialOrIds::new(vec![]),
+            credentials: vec![],
             grants: CredentialOfferGrants {
                 authorized_code_flow: Some(AuthorizedCodeFlow { issuer_state: None }),
                 pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
@@ -482,7 +490,7 @@ mod test_access_token_evaluate_request {
 
         let credential_offer = CredentialOffer {
             credential_issuer: "me".to_owned(),
-            credentials: CredentialOrIds::new(vec![]),
+            credentials: vec![],
             grants: CredentialOfferGrants {
                 authorized_code_flow: None,
                 pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
@@ -516,7 +524,7 @@ mod test_access_token_evaluate_request {
 
         let credential_offer = CredentialOffer {
             credential_issuer: "me".to_owned(),
-            credentials: CredentialOrIds::new(vec![]),
+            credentials: vec![],
             grants: CredentialOfferGrants {
                 authorized_code_flow: None,
                 pre_authorized_code_flow: Some(PreAuthorizedCodeFlow {
@@ -548,7 +556,7 @@ mod test_access_token_evaluate_request {
         let access_token_request = AccessTokenRequest {
             grant_type: GrantType::PreAuthorizedCodeFlow {
                 pre_authorized_code: "0123".to_owned(),
-                user_pin: Some(11111111111),
+                user_pin: Some(11_111_111_111),
             },
         };
 
@@ -601,7 +609,7 @@ mod test_access_token_evaluate_request {
 
         let credential_offer = CredentialOffer {
             credential_issuer: "me".to_owned(),
-            credentials: CredentialOrIds::new(vec![]),
+            credentials: vec![],
             grants: CredentialOfferGrants {
                 authorized_code_flow: Some(AuthorizedCodeFlow { issuer_state: None }),
                 pre_authorized_code_flow: None,
