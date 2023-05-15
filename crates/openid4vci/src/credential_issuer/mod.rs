@@ -611,7 +611,9 @@ impl CredentialIssuer {
 
 #[cfg(test)]
 mod test_create_credential_offer {
-    use crate::credential_issuer::error::CredentialIssuerError;
+    use crate::{
+        credential_issuer::error::CredentialIssuerError, types::credential::LinkedDataContext,
+    };
 
     use super::*;
 
@@ -620,7 +622,7 @@ mod test_create_credential_offer {
         let (offer, url) = CredentialIssuer::create_offer(
             &CredentialIssuerMetadata::default(),
             vec![CredentialOrId::Credential(CredentialFormatProfile::LdpVc {
-                context: vec!["context_one".to_owned()],
+                context: vec![LinkedDataContext::String("context_one".to_owned())],
                 types: vec!["type_one".to_owned()],
                 credential_subject: None,
                 order: None,
@@ -673,9 +675,8 @@ mod test_create_credential_offer {
 
 #[cfg(test)]
 mod test_pre_evaluate_credential_request {
-    use crate::jwt::error::JwtError;
-
     use super::*;
+    use crate::jwt::error::JwtError;
 
     #[test]
     fn happy_flow() {
@@ -731,11 +732,9 @@ mod test_pre_evaluate_credential_request {
 
 #[cfg(test)]
 mod test_evaluate_credential_request {
-    use ssi_dids::Document;
-
-    use crate::jwt::error::JwtError;
-
     use super::*;
+    use crate::jwt::error::JwtError;
+    use ssi_dids::Document;
 
     fn valid_credential_format_profile() -> serde_json::Value {
         serde_json::json!({

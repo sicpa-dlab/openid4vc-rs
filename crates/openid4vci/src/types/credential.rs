@@ -7,6 +7,17 @@ use crate::{
     validate::{Validatable, ValidationError},
 };
 
+/// Linked data context used for JSON-LD credentials
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum LinkedDataContext {
+    /// Contains a simple string, plain URL for example
+    String(String),
+
+    /// Contains a mapping from term -> IRI which can be a string or any JSON
+    Map(HashMap<String, LinkedDataContext>),
+}
+
 /// A struct mapping a `credential` type as defined in Appendix E in the [openid4vci
 /// specification](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#format_profiles)
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -64,7 +75,7 @@ pub enum CredentialFormatProfile {
     LdpVc {
         /// JSON array as defined in [VC_DATA](https://www.w3.org/TR/vc-data-model/), Section 4.1.
         #[serde(rename = "@context")]
-        context: Vec<String>,
+        context: Vec<LinkedDataContext>,
 
         /// JSON array designating the types a certain credential type supports according to
         /// [VC_DATA](https://www.w3.org/TR/vc-data-model/), Section 4.3.
@@ -402,8 +413,7 @@ mod credential_tests {
                     ]
                 }
             }
-        }
-                    );
+        });
 
         let credential: CredentialFormatProfile =
             serde_json::from_value(jwt_vc_json).expect("Could not format credential");
@@ -415,9 +425,16 @@ mod credential_tests {
                 credential_subject,
                 context,
             } => {
-                assert!(context.contains(&"https://www.w3.org/2018/credentials/v1".to_owned()));
-                assert!(
-                    context.contains(&"https://www.w3.org/2018/credentials/examples/v1".to_owned())
+                assert_eq!(
+                    context,
+                    vec![
+                        LinkedDataContext::String(
+                            "https://www.w3.org/2018/credentials/v1".to_owned()
+                        ),
+                        LinkedDataContext::String(
+                            "https://www.w3.org/2018/credentials/examples/v1".to_owned()
+                        )
+                    ]
                 );
                 assert!(types.contains(&"VerifiableCredential".to_owned()));
                 assert!(types.contains(&"UniversityDegreeCredential".to_owned()));
