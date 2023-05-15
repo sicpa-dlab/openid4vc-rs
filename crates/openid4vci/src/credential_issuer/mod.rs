@@ -321,15 +321,6 @@ pub struct ProofOfPossession {
     pub signature: Vec<u8>,
 }
 
-/// Additional struct for metadata that will be used to verify
-///
-/// TODO: include nonce
-#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Hash)]
-pub struct CredentialIssuerEvaluateRequestOptions {
-    /// Id of the client that will be checked whether it is equal to the `iss` field inside the JWK
-    client_id: Option<String>,
-}
-
 /// Response structure for a `credential_success`.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct CredentialSuccessResponse {
@@ -378,6 +369,25 @@ pub struct CNonce {
 pub struct EvaluateCredentialRequestOptions {
     /// Additional nonce options for validation
     pub c_nonce: Option<CNonceOptions>,
+
+    /// Id of the client that will be checked whether it is equal to the `iss` field inside the
+    /// `JWT` proof
+    ///
+    /// For the Pre-Authorized Code Grant Type, authentication of the client is OPTIONAL, as
+    /// described in Section 3.2.1 of OAuth 2.0 [RFC6749](https://www.rfc-editor.org/info/rfc6749)
+    /// and consequently, the "client_id" is only needed when a form of Client Authentication that
+    /// relies on the parameter is used.
+    ///
+    /// We deal with it being `OPTIONAL` by using the following algorithm:
+    ///
+    /// - If pre-authorized flow is used:
+    ///     - If `client_id` is supplied:
+    ///         - validate the `client_id` with the `iss` field in the `JWT`
+    ///     - if `client_id` is not supplied:
+    ///         - Do not validate even if the `iss` field is supplied within the `JWT`
+    /// - if authorized code flow is used:
+    ///     - validate the `client_id` with the `iss` field inside the `JWT`
+    pub client_id: Option<String>,
 }
 
 /// Extra nonce options for validation
@@ -480,8 +490,13 @@ impl CredentialIssuer {
     ///
     /// # Errors
     ///
+    /// - When a credential offer is not supplied
+    /// - When authorization server metadata is supplied
     /// - When incorrect valdiation happens on the supplied input arguments
+    /// - when the `c_nonce` is expired
     /// - When a JWT is inside the proof and is not valid
+    /// - When the `client_id` is not inside the `JWT` as `iss`
+    /// - When the `issuer_metadata.credential_issuer` is not equal to `aud` inside the `JWT`
     pub fn evaluate_credential_request(
         issuer_metadata: &CredentialIssuerMetadata,
         credential_request: &CredentialRequest,
@@ -491,6 +506,15 @@ impl CredentialIssuer {
         evaluate_credential_request_options: Option<EvaluateCredentialRequestOptions>,
     ) -> CredentialIssuerResult<CredentialIssuerEvaluateRequestResponse> {
         issuer_metadata.validate()?;
+
+        let credential_offer =
+            credential_offer.ok_or(CredentialIssuerError::CredentialOfferMustBeSupplied)?;
+        credential_offer.validate()?;
+
+        if let Some(authorization_server_metadata) = authorization_server_metadata {
+            authorization_server_metadata.validate()?;
+            return Err(CredentialIssuerError::AuthorizationServerMetadataNotSupported);
+        };
 
         if let Some(c_nonce_options) = evaluate_credential_request_options
             .clone()
@@ -508,25 +532,49 @@ impl CredentialIssuer {
             }
         }
 
-        if let Some(credential_offer) = credential_offer {
-            credential_offer.validate()?;
-        } else {
-            return Err(CredentialIssuerError::CredentialOfferMustBeSupplied);
-        };
-
-        if let Some(authorization_server_metadata) = authorization_server_metadata {
-            authorization_server_metadata.validate()?;
-            return Err(CredentialIssuerError::AuthorizationServerMetadataNotSupported);
-        };
-
         if let Some(CredentialRequestProof { jwt, .. }) = &credential_request.proof {
             let jwt = ProofJwt::from_str(jwt)?;
             jwt.validate()?;
 
             let expected_c_nonce = evaluate_credential_request_options
+                .clone()
                 .and_then(|o| o.c_nonce)
                 .map(|c| c.expected_c_nonce);
             jwt.check_nonce(expected_c_nonce)?;
+
+            let expected_issuer = evaluate_credential_request_options
+                .clone()
+                .and_then(|o| o.client_id);
+
+            let should_validate_iss = match evaluate_credential_request_options {
+                Some(EvaluateCredentialRequestOptions { client_id, .. }) => {
+                    // We validate when the `client_id` has a value OR when the authorized code
+                    // flow is chosen.
+                    let should_validate = client_id.is_some()
+                        || credential_offer.grants.authorized_code_flow.is_some();
+
+                    // We do not validate when the `client_is` is none AND when the
+                    // pre-authorized code flow is used.
+                    let should_not_validate = client_id.is_none()
+                        && credential_offer.grants.pre_authorized_code_flow.is_some();
+
+                    // Here we choose the stricted combination which only results in no validation
+                    // when:
+                    //
+                    // 1. pre-authorized code flow is ONLY chosen
+                    // 2. supplied `client_id` is none
+                    //
+                    // Every other case will be validated
+                    should_validate || !should_not_validate
+                }
+                None => false,
+            };
+
+            if should_validate_iss {
+                jwt.check_iss(expected_issuer)?;
+            }
+
+            jwt.check_aud(&issuer_metadata.credential_issuer)?;
 
             let (public_key, algorithm) = jwt.extract_key_and_alg(did_document)?;
             let signature = jwt.extract_signature()?;
@@ -784,7 +832,18 @@ mod test_evaluate_credential_request {
 
     fn valid_issuer_metadata() -> CredentialIssuerMetadata {
         serde_json::from_value(serde_json::json!({
-            "credential_issuer": "01001110",
+            "credential_issuer": "https://server.example.com",
+            "credential_endpoint": "https://example.org",
+            "credentials_supported": [
+                valid_credential_format_profile(),
+            ],
+        }))
+        .expect("Unable to create issuer metadata")
+    }
+
+    fn invalid_issuer_metadata_wrong_credential_issuer() -> CredentialIssuerMetadata {
+        serde_json::from_value(serde_json::json!({
+            "credential_issuer": "some-invalid-id",
             "credential_endpoint": "https://example.org",
             "credentials_supported": [
                 valid_credential_format_profile(),
@@ -869,6 +928,7 @@ mod test_evaluate_credential_request {
                 expected_c_nonce: "tZignsnFbp".to_owned(),
                 c_nonce_created_at: Utc::now(),
             }),
+            client_id: Some("s6BhdRkqt3".to_owned()),
         }
     }
 
@@ -880,6 +940,7 @@ mod test_evaluate_credential_request {
                 expected_c_nonce: "some_invalid_nonce".to_owned(),
                 c_nonce_created_at: Utc::now(),
             }),
+            client_id: Some("s6BhdRkqt3".to_owned()),
         }
     }
 
@@ -891,6 +952,19 @@ mod test_evaluate_credential_request {
                 expected_c_nonce: "tZignsnFbp".to_owned(),
                 c_nonce_created_at: Utc::now() - Duration::hours(100),
             }),
+            client_id: Some("s6BhdRkqt3".to_owned()),
+        }
+    }
+
+    fn valid_evaluate_credential_request_options_pre_authorized_code_flow_and_no_client_id_to_check(
+    ) -> EvaluateCredentialRequestOptions {
+        EvaluateCredentialRequestOptions {
+            c_nonce: Some(CNonceOptions {
+                c_nonce_expires_in: 1000,
+                expected_c_nonce: "tZignsnFbp".to_owned(),
+                c_nonce_created_at: Utc::now(),
+            }),
+            client_id: None,
         }
     }
 
@@ -946,20 +1020,20 @@ mod test_evaluate_credential_request {
                 119, 87, 115, 100, 118, 107, 116, 72, 34, 125, 46, 123, 34, 105, 115, 115, 34, 58,
                 34, 115, 54, 66, 104, 100, 82, 107, 113, 116, 51, 34, 44, 34, 97, 117, 100, 34, 58,
                 34, 104, 116, 116, 112, 115, 58, 47, 47, 115, 101, 114, 118, 101, 114, 46, 101,
-                120, 97, 109, 112, 108, 101, 46, 99, 111, 109, 34, 44, 34, 105, 97, 116, 34, 58,
-                34, 50, 48, 49, 56, 45, 48, 57, 45, 49, 52, 84, 50, 49, 58, 49, 57, 58, 49, 48, 90,
-                34, 44, 34, 110, 111, 110, 99, 101, 34, 58, 34, 116, 90, 105, 103, 110, 115, 110,
-                70, 98, 112, 34, 125
+                120, 97, 109, 112, 108, 101, 46, 99, 111, 109, 34, 44, 34, 115, 117, 98, 34, 58,
+                110, 117, 108, 108, 44, 34, 105, 97, 116, 34, 58, 34, 50, 48, 49, 56, 45, 48, 57,
+                45, 49, 52, 84, 50, 49, 58, 49, 57, 58, 49, 48, 90, 34, 44, 34, 110, 111, 110, 99,
+                101, 34, 58, 34, 116, 90, 105, 103, 110, 115, 110, 70, 98, 112, 34, 125
             ]
         );
 
         assert_eq!(
             evaluated.signature,
             vec![
-                101, 120, 97, 109, 112, 108, 101, 46, 99, 111, 109, 34, 44, 34, 105, 97, 116, 34,
-                58, 34, 50, 48, 49, 56, 45, 48, 57, 45, 49, 52, 84, 50, 49, 58, 49, 57, 58, 49, 48,
-                90, 34, 44, 34, 110, 111, 110, 99, 101, 34, 58, 34, 116, 90, 105, 103, 110, 115,
-                110, 70, 98, 112, 34, 125
+                101, 120, 97, 109, 112, 108, 101, 46, 99, 111, 109, 34, 44, 34, 115, 117, 98, 34,
+                58, 110, 117, 108, 108, 44, 34, 105, 97, 116, 34, 58, 34, 50, 48, 49, 56, 45, 48,
+                57, 45, 49, 52, 84, 50, 49, 58, 49, 57, 58, 49, 48, 90, 34, 44, 34, 110, 111, 110,
+                99, 101, 34, 58, 34, 116, 90, 105, 103, 110, 115, 110, 70, 98, 112, 34, 125
             ]
         );
     }
@@ -1083,6 +1157,57 @@ mod test_evaluate_credential_request {
             evaluated,
             Err(CredentialIssuerError::CNonceIsExpired { .. })
         ));
+    }
+
+    #[test]
+    fn should_evaluate_credential_request_with_when_pre_authorized_code_flow_is_used_and_no_client_id(
+    ) {
+        let issuer_metadata = valid_issuer_metadata();
+        let credential_request = valid_credential_request();
+        let did_document = valid_did_document();
+        let credential_offer = valid_credential_offer();
+        let evaluate_credential_request_options =
+            valid_evaluate_credential_request_options_pre_authorized_code_flow_and_no_client_id_to_check();
+
+        let evaluated = CredentialIssuer::evaluate_credential_request(
+            &issuer_metadata,
+            &credential_request,
+            Some(&credential_offer),
+            None,
+            Some(&did_document),
+            Some(evaluate_credential_request_options),
+        );
+
+        assert!(evaluated.is_ok());
+    }
+
+    #[test]
+    fn should_not_evaluate_credential_request_with_credential_issuer_mismatch_in_metadata_and_proof(
+    ) {
+        let issuer_metadata = invalid_issuer_metadata_wrong_credential_issuer();
+        let credential_request = valid_credential_request();
+        let did_document = valid_did_document();
+        let credential_offer = valid_credential_offer();
+        let evaluate_credential_request_options = valid_evaluate_credential_request_options();
+
+        let evaluated = CredentialIssuer::evaluate_credential_request(
+            &issuer_metadata,
+            &credential_request,
+            Some(&credential_offer),
+            None,
+            Some(&did_document),
+            Some(evaluate_credential_request_options),
+        );
+
+        assert_eq!(
+            evaluated,
+            Err(CredentialIssuerError::JwtError(
+                JwtError::AudienceMismatch {
+                    expected_aud_in_jwt: "some-invalid-id".to_owned(),
+                    actual_aud_in_jwt: "https://server.example.com".to_owned()
+                }
+            ))
+        );
     }
 }
 

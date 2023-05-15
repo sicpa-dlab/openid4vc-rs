@@ -350,8 +350,6 @@ mod test_access_token_evaluate_request {
             Some(evaluate_access_token_request_options),
         );
 
-        println!("{output:?}");
-
         assert!(output.is_ok());
     }
 
@@ -360,12 +358,12 @@ mod test_access_token_evaluate_request {
         let access_token_request = AccessTokenRequest {
             grant_type: GrantType::PreAuthorizedCodeFlow {
                 pre_authorized_code: "0123".to_owned(),
-                user_pin: Some(123213),
+                user_pin: Some(123_213),
             },
         };
 
         let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
-            user_code: Some(123213),
+            user_code: Some(123_213),
         };
 
         let output = AccessToken::evaluate_access_token_request(
