@@ -184,7 +184,7 @@ impl ProofJwt {
     /// - When did could not be transformed
     /// - When `jwk` is used
     /// - When `x5c` is used
-    pub fn extract_kid(&self) -> JwtResult<Option<String>> {
+    pub fn extract_did(&self) -> JwtResult<Option<String>> {
         if let Some(header) = &self.header.additional_header {
             match header {
                 ProofJwtAdditionalHeader::KeyId(key_id) => {
@@ -195,7 +195,7 @@ impl ProofJwt {
                         }
                     })?;
 
-                    Ok(Some(did.to_string()))
+                    Ok(Some(did.did))
                 }
                 ProofJwtAdditionalHeader::Jwk(jwk) => {
                     Err(JwtError::UnsupportedKeyTypeInJwtHeader {
