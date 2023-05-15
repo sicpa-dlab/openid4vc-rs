@@ -140,7 +140,7 @@ impl Validatable for AccessTokenRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct EvaluateAccessTokenRequestOptions {
     /// Provided user code to validate against
-    user_code: Option<u64>,
+    expected_user_pin: Option<u64>,
 }
 
 impl AccessToken {
@@ -185,22 +185,14 @@ impl AccessToken {
                     user_pin,
                 } => {
                     if let Some(user_pin) = user_pin {
-                        let evaluate_access_token_request_options =
-                            evaluate_access_token_request_options.ok_or(
-                                AccessTokenError::OptionsAreRequiredForEvaluation {
-                                    reason: "user_pin was supplied in the access token request"
-                                        .to_owned(),
-                                },
-                            )?;
-
-                        let user_code_from_options = evaluate_access_token_request_options
-                            .user_code
+                        let user_pin_from_options = evaluate_access_token_request_options
+                            .and_then(|o| o.expected_user_pin)
                             .ok_or(AccessTokenError::OptionsAreRequiredForEvaluation {
                                 reason: "user_pin was supplied in the access token request"
                                     .to_owned(),
                             })?;
 
-                        if user_pin != &user_code_from_options {
+                        if *user_pin != user_pin_from_options {
                             return Err(AccessTokenError::UserPinMismatch);
                         }
                     };
@@ -341,7 +333,7 @@ mod test_access_token_evaluate_request {
         };
 
         let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
-            user_code: Some(123_213),
+            expected_user_pin: Some(123_213),
         };
 
         let output = AccessToken::evaluate_access_token_request(
@@ -363,7 +355,7 @@ mod test_access_token_evaluate_request {
         };
 
         let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
-            user_code: Some(123_213),
+            expected_user_pin: Some(123_213),
         };
 
         let output = AccessToken::evaluate_access_token_request(
@@ -396,7 +388,7 @@ mod test_access_token_evaluate_request {
         };
 
         let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
-            user_code: Some(111),
+            expected_user_pin: Some(111),
         };
 
         let output = AccessToken::evaluate_access_token_request(
@@ -429,7 +421,7 @@ mod test_access_token_evaluate_request {
         };
 
         let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
-            user_code: Some(123213),
+            expected_user_pin: Some(123213),
         };
 
         let output = AccessToken::evaluate_access_token_request(
@@ -501,7 +493,7 @@ mod test_access_token_evaluate_request {
         };
 
         let evaluate_access_token_request_options = EvaluateAccessTokenRequestOptions {
-            user_code: Some(123),
+            expected_user_pin: Some(123),
         };
 
         let output = AccessToken::evaluate_access_token_request(
