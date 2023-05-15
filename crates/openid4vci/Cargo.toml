@@ -18,3 +18,4 @@ ssi-dids = "=0.1.0"
 ssi-jwk = {version = "0.1.0", default-features = false }
 strum = { version = "0.24.1", features = ["derive"] }
 urlencoding = "2.1.2"
+serde_path_to_error = "0.1.11"

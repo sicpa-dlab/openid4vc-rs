@@ -7,7 +7,9 @@ pub fn deserialize_slice<T>(b: &[u8]) -> std::result::Result<T, GrpcError>
 where
     T: DeserializeOwned,
 {
-    serde_json::from_slice(b).map_err(|e| GrpcError::ValidationError(ValidationError::from(e)))
+    let deserializer = &mut serde_json::Deserializer::from_slice(b);
+    let data: Result<T, _> = serde_path_to_error::deserialize(deserializer);
+    data.map_err(|e| GrpcError::ValidationError(ValidationError::from(e)))
 }
 
 /// Optionally, Deserialize a slice into a structure and convert the error into a [`GrpcError`]

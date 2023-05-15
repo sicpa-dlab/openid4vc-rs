@@ -6,7 +6,7 @@ use thiserror::Error;
 #[repr(u32)]
 #[serde(untagged)]
 pub enum ValidationError {
-    #[error("{validation_message}")]
+    #[error("An error occurred during validation, serialization or deserialization")]
     /// Any validation error occurred
     Any {
         /// Validation message that should help the user debug the issue
@@ -29,6 +29,14 @@ impl From<base64::DecodeError> for ValidationError {
 
 impl From<serde_json::Error> for ValidationError {
     fn from(e: serde_json::Error) -> Self {
+        ValidationError::Any {
+            validation_message: e.to_string(),
+        }
+    }
+}
+
+impl From<serde_path_to_error::Error<serde_json::Error>> for ValidationError {
+    fn from(e: serde_path_to_error::Error<serde_json::Error>) -> Self {
         ValidationError::Any {
             validation_message: e.to_string(),
         }
