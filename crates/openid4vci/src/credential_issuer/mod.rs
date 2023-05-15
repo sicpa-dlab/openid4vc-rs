@@ -292,10 +292,16 @@ pub struct PreEvaluateCredentialRequestResponse {
 }
 
 /// Return type of the [`CredentialIssuer::evaluate_credential_request`]
-#[derive(Debug, Serialize, PartialEq, Eq, Default)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct CredentialIssuerEvaluateRequestResponse {
     /// Proof of possession, wrapping [`ProofOfPossession`]
     pub proof_of_possession: Option<ProofOfPossession>,
+
+    /// Identifier of the recipient. This identifier can be used when sending the credential.
+    pub subject_id: Option<String>,
+
+    /// The credential that should be issued afterwards to the `recipient_id`
+    pub credential: CredentialFormatProfile,
 }
 
 /// Structure that contains the items to check a proof of possession
@@ -472,7 +478,7 @@ impl CredentialIssuer {
         let did = if let Some(CredentialRequestProof { jwt, .. }) = &credential_request.proof {
             let jwt = ProofJwt::from_str(jwt)?;
             jwt.validate()?;
-            jwt.extract_kid()?
+            jwt.extract_did()?
         } else {
             None
         };
@@ -581,10 +587,12 @@ impl CredentialIssuer {
                     message,
                     signature,
                 }),
+                subject_id: jwt.extract_did()?,
+                credential: credential_request.format.clone(),
             });
-        };
+        }
 
-        Ok(CredentialIssuerEvaluateRequestResponse::default())
+        Err(CredentialIssuerError::NoProofInCredentialRequest)
     }
 
     /// Create a credential success response when all the previous steps are completed.
@@ -745,7 +753,7 @@ mod test_pre_evaluate_credential_request {
 
         assert_eq!(
             response.did,
-            Some("did:example:ebfeb1f712ebc6f1c276e12ec21/keys/1".to_owned())
+            Some("did:example:ebfeb1f712ebc6f1c276e12ec21".to_owned())
         );
     }
 
@@ -844,19 +852,22 @@ mod test_evaluate_credential_request {
         .expect("Unable to create issuer metadata")
     }
 
+    fn valid_credential_format() -> CredentialFormatProfile {
+        CredentialFormatProfile::LdpVc {
+            context: vec![],
+            types: vec![],
+            credential_subject: None,
+            order: None,
+        }
+    }
+
     fn valid_credential_request() -> CredentialRequest {
         CredentialRequest {
          proof: Some(CredentialRequestProof {
              proof_type: "jwt".to_owned(),
              jwt: "ewogICJraWQiOiAiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjejZNa3BUSFI4Vk5zQnhZQUFXSHV0MkdlYWRkOWpTd3VCVjh4Um9BbndXc2R2a3RIIiwKICAiYWxnIjogIkVkRFNBIiwKICAidHlwIjogIm9wZW5pZDR2Y2ktcHJvb2Yrand0Igp9.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbmNlIjoidFppZ25zbkZicCJ9".to_owned(),
          }),
-         format: CredentialFormatProfile::LdpVc {
-             context: vec![],
-             types: vec![],
-             credential_subject: None,
-             order: None,
-         },
-     }
+         format:  valid_credential_format()   }
     }
 
     fn valid_authorized_server_metadata() -> AuthorizationServerMetadata {
@@ -974,6 +985,13 @@ mod test_evaluate_credential_request {
             Some(evaluate_credential_request_options),
         )
         .expect("Unable to evaluate credential request");
+
+        assert_eq!(
+            evaluated.subject_id,
+            Some("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH".to_owned())
+        );
+
+        assert_eq!(evaluated.credential, valid_credential_format());
 
         let evaluated = evaluated
             .proof_of_possession

@@ -410,7 +410,7 @@ mod credential_issuer_tests {
     #[tokio::test]
     async fn should_pre_evaluate_request() {
         let expected = pre_evaluate_credential_request_response::Success {
-            did: Some("did:example:ebfeb1f712ebc6f1c276e12ec21/keys/1".to_owned()),
+            did: Some("did:example:ebfeb1f712ebc6f1c276e12ec21".to_owned()),
         };
 
         let issuer = GrpcCredentialIssuer::default();
