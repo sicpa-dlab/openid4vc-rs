@@ -1,5 +1,0 @@
-syntax = "proto3";
-
-import "error.proto";
-import "access_token.proto";
-import "credential_issuer.proto";
